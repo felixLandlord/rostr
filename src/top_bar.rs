@@ -52,9 +52,10 @@ impl TopBar {
         });
 
         let date_nav = row![
-            text(current_date).size(22).style(move |_| text::Style {
+            container(text(current_date).size(22).style(move |_| text::Style {
                 color: Some(text_color)
-            }),
+            }))
+            .width(165),
             row![
                 tooltip(
                     button(icon_chevron_left().size(18).color(muted_color))
@@ -124,7 +125,7 @@ impl TopBar {
                     color: Some(muted_color)
                 }),
             ]
-            .spacing(1)
+            .spacing(4)
         ]
         .spacing(12)
         .align_y(Alignment::Center);
@@ -251,7 +252,7 @@ impl TopBar {
             .padding(Padding::from([0, 32])),
         )
         .width(Length::Fill)
-        .height(Length::Fixed(72.0))
+        .height(Length::Fixed(85.0))
         .align_y(Alignment::Center)
         .style(move |theme: &Theme| {
             let _palette = theme.palette();
