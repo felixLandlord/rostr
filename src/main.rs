@@ -1,9 +1,11 @@
 mod theme;
 mod top_bar;
+mod action_bar;
+use action_bar::{ActionBar, Message as ActionBarMessage};
 use chrono::{Datelike, Local, NaiveDate};
 use iced::task::Task;
 use iced::widget::{column, container};
-use iced::{Element, Length, Theme};
+use iced::{Element, Length, Padding, Theme};
 use lucide_icons::LUCIDE_FONT_BYTES;
 use top_bar::{Message as TopBarMessage, TopBar};
 
@@ -35,11 +37,13 @@ impl Default for RostrApp {
 #[derive(Debug, Clone)]
 enum Message {
     TopBar(TopBarMessage),
+    ActionBar(ActionBarMessage),
 }
 
 impl RostrApp {
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::ActionBar(_) => {}
             Message::TopBar(top_bar_msg) => match top_bar_msg {
                 TopBarMessage::SearchChanged(query) => self.search_query = query,
                 TopBarMessage::ToggleTheme => self.is_dark = !self.is_dark,
@@ -91,7 +95,9 @@ impl RostrApp {
         )
         .map(Message::TopBar);
 
-        container(column![top_bar])
+        let action_bar = ActionBar::view(self.is_dark).map(Message::ActionBar);
+
+        container(column![top_bar, container(action_bar).padding(Padding::from([24, 32]))])
             .width(Length::Fill)
             .height(Length::Fill)
             .style(move |theme: &Theme| {
