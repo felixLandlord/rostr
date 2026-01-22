@@ -271,12 +271,12 @@ impl AttendanceTable {
         // Header
         let header = row![
             // Checkbox column spacer
-            container(text(""))
+            container(text(" ").size(14))
                 .width(Length::Fixed(60.0))
                 .padding([16, 8])
                 .style(move |theme: &Theme| container::Style {
                     border: iced::border::Border {
-                        color: if is_dark { theme::BORDER_DARK } else { theme::GRAY_50 },
+                        color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
                         width: 1.0,
                         radius: iced::border::Radius {
                             top_left: 12.0,
@@ -298,10 +298,10 @@ impl AttendanceTable {
                 .align_y(Alignment::Center)
             )
             .width(Length::FillPortion(2))
-            .padding([16, 32])
+            .padding([17, 32])
             .style(move |theme: &Theme| container::Style {
                 border: iced::border::Border {
-                    color: if is_dark { theme::BORDER_DARK } else { theme::GRAY_50 },
+                    color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
                     width: 1.0,
                     radius: 0.0.into(),
                 },
@@ -323,7 +323,7 @@ impl AttendanceTable {
             .padding([16, 16])
             .style(move |_t: &Theme| container::Style {
                  border: iced::border::Border {
-                    color: if is_dark { theme::BORDER_DARK } else { theme::GRAY_50 }, // Approximation
+                    color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT }, // Approximation
                     width: 1.0,
                     radius: if is_last {
                         iced::border::Radius {
@@ -402,7 +402,7 @@ impl AttendanceTable {
                     .style(move |theme: &Theme| container::Style {
                         background: Some(theme.palette().background.into()),
                         border: iced::border::Border {
-                            color: if is_dark { theme::BORDER_DARK } else { theme::GRAY_50 },
+                            color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
                             width: 1.0,
                             radius: 0.0.into(),
                         },
@@ -429,7 +429,7 @@ impl AttendanceTable {
                     .style(move |theme: &Theme| container::Style {
                          background: Some(theme.palette().background.into()),
                          border: iced::border::Border {
-                            color: if is_dark { theme::BORDER_DARK } else { theme::GRAY_50 },
+                            color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
                             width: 1.0,
                             radius: 0.0.into(),
                         },
@@ -502,7 +502,7 @@ impl AttendanceTable {
                             .padding([12, 16])
                             .style(move |_t: &Theme| container::Style {
                                 border: iced::border::Border {
-                                    color: if is_dark { theme::BORDER_DARK } else { theme::GRAY_50 },
+                                    color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
                                     width: 1.0,
                                     radius: 0.0.into(),
                                 },
@@ -524,12 +524,12 @@ impl AttendanceTable {
 
         let footer = row![
             // Checkbox column spacer
-            container(text(""))
+            container(text(" ").size(12))
                 .width(Length::Fixed(60.0))
                 .padding([16, 8])
                 .style(move |theme: &Theme| container::Style {
                     border: iced::border::Border {
-                        color: if is_dark { theme::BORDER_DARK } else { theme::GRAY_50 },
+                        color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
                         width: 1.0,
                         radius: iced::border::Radius {
                             top_left: 0.0,
@@ -555,7 +555,7 @@ impl AttendanceTable {
             .padding([16, 32])
             .style(move |theme: &Theme| container::Style {
                 border: iced::border::Border {
-                    color: if is_dark { theme::BORDER_DARK } else { theme::GRAY_50 },
+                    color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
                     width: 1.0,
                     radius: 0.0.into(),
                 },
@@ -600,7 +600,7 @@ impl AttendanceTable {
             .padding([12, 16])
             .style(move |_t: &Theme| container::Style {
                 border: iced::border::Border {
-                    color: if is_dark { theme::BORDER_DARK } else { theme::GRAY_50 },
+                    color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
                     width: 1.0,
                     radius: if is_last {
                         iced::border::Radius {
