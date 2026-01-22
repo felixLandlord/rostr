@@ -1,5 +1,7 @@
 use iced::widget::{button, column, container, row, scrollable, text};
+use iced::task::Task;
 use iced::{Alignment, Color, Element, Length, Theme};
+use std::time::Duration;
 
 use crate::theme;
 
@@ -28,11 +30,14 @@ pub struct Employee {
 #[derive(Debug, Clone)]
 pub struct AttendanceTable {
     employees: Vec<Employee>,
+    selected_employee: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
     ToggleStatus(usize, usize), // employee_index, day_index
+    SelectEmployee(usize),
+    AutoDeselect(usize),
 }
 
 impl AttendanceTable {
@@ -105,12 +110,126 @@ impl AttendanceTable {
                     AttendanceStatus::Office,
                 ],
             },
+            // Added Dummy Data
+            Employee {
+                name: "Alice Cooper".to_string(),
+                role: "Marketing Lead".to_string(),
+                attendance: [
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Office,
+                ],
+            },
+            Employee {
+                name: "Emmanuel Felix Nunoo".to_string(),
+                role: "Sales Manager".to_string(),
+                attendance: [
+                    AttendanceStatus::Remote,
+                    AttendanceStatus::Remote,
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Remote,
+                ],
+            },
+            Employee {
+                name: "Charlie Brown".to_string(),
+                role: "Intern".to_string(),
+                attendance: [
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Remote,
+                    AttendanceStatus::Remote,
+                    AttendanceStatus::Office,
+                ],
+            },
+            Employee {
+                name: "Diana Prince".to_string(),
+                role: "Security Analyst".to_string(),
+                attendance: [
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Remote,
+                ],
+            },
+            Employee {
+                name: "Evan Wright".to_string(),
+                role: "Data Scientist".to_string(),
+                attendance: [
+                    AttendanceStatus::Remote,
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Remote,
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Office,
+                ],
+            },
+            Employee {
+                name: "Fiona Gallagher".to_string(),
+                role: "HR Assistant".to_string(),
+                attendance: [
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Remote,
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Remote,
+                ],
+            },
+            Employee {
+                name: "George Martin".to_string(),
+                role: "Copywriter".to_string(),
+                attendance: [
+                    AttendanceStatus::Remote,
+                    AttendanceStatus::Remote,
+                    AttendanceStatus::Remote,
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Office,
+                ],
+            },
+            Employee {
+                name: "Hannah Lee".to_string(),
+                role: "QA Engineer".to_string(),
+                attendance: [
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Remote,
+                    AttendanceStatus::Remote,
+                ],
+            },
+            Employee {
+                name: "Ian Somerhalder".to_string(),
+                role: "System Admin".to_string(),
+                attendance: [
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Remote,
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Remote,
+                    AttendanceStatus::Office,
+                ],
+            },
+            Employee {
+                name: "Julia Roberts".to_string(),
+                role: "Receptionist".to_string(),
+                attendance: [
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Office,
+                    AttendanceStatus::Office,
+                ],
+            },
         ];
 
-        Self { employees }
+        Self {
+            employees,
+            selected_employee: None,
+        }
     }
 
-    pub fn update(&mut self, message: Message) {
+    pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::ToggleStatus(emp_idx, day_idx) => {
                 if let Some(employee) = self.employees.get_mut(emp_idx) {
@@ -118,6 +237,30 @@ impl AttendanceTable {
                         employee.attendance[day_idx] = employee.attendance[day_idx].toggle();
                     }
                 }
+                Task::none()
+            }
+            Message::SelectEmployee(idx) => {
+                if self.selected_employee == Some(idx) {
+                    // Deselect if already selected
+                    self.selected_employee = None;
+                    Task::none()
+                } else {
+                    self.selected_employee = Some(idx);
+                    // Auto-deselect after 15 seconds
+                    Task::perform(
+                        async move {
+                            tokio::time::sleep(Duration::from_secs(15)).await;
+                            idx
+                        },
+                        Message::AutoDeselect,
+                    )
+                }
+            }
+            Message::AutoDeselect(idx) => {
+                if self.selected_employee == Some(idx) {
+                    self.selected_employee = None;
+                }
+                Task::none()
             }
         }
     }
@@ -127,6 +270,10 @@ impl AttendanceTable {
 
         // Header
         let header = row![
+            // Checkbox column spacer
+            container(text(""))
+                .width(Length::Fixed(60.0))
+                .padding([16, 8]),
             container(
                 row![
                     text("EMPLOYEE").size(12).font(iced::font::Font {
@@ -137,8 +284,8 @@ impl AttendanceTable {
                 .spacing(8)
                 .align_y(Alignment::Center)
             )
-            .width(Length::Fixed(300.0))
-            .padding([16, 24]),
+            .width(Length::FillPortion(2))
+            .padding([16, 32]),
         ]
         .push(row(days.iter().map(|day| {
             container(
@@ -149,7 +296,7 @@ impl AttendanceTable {
                         ..Default::default()
                     })
             )
-            .width(Length::Fixed(150.0))
+            .width(Length::Fill)
             .align_x(Alignment::Center)
             .padding([16, 16])
             .style(move |_t: &Theme| container::Style {
@@ -161,7 +308,8 @@ impl AttendanceTable {
                 ..Default::default()
             })
             .into()
-        })))
+        }))
+        .width(Length::FillPortion(5)))
         .spacing(0);
 
         // Rows
@@ -170,9 +318,64 @@ impl AttendanceTable {
                 .iter()
                 .enumerate()
                 .map(|(emp_idx, employee)| {
+                    let is_selected = self.selected_employee == Some(emp_idx);
+
+                    let checkbox_cell = container(
+                        button(
+                            container(
+                                if is_selected {
+                                    container("")
+                                        .width(8)
+                                        .height(8)
+                                        .style(|_t: &Theme| container::Style {
+                                            background: Some(theme::PRIMARY.into()), // Green dot
+                                            border: iced::border::Border {
+                                                radius: 4.0.into(),
+                                                ..Default::default()
+                                            },
+                                            ..Default::default()
+                                        })
+                                } else {
+                                    container("").width(0).height(0)
+                                }
+                            )
+                            .width(16)
+                            .height(16)
+                            .align_x(Alignment::Center)
+                            .align_y(Alignment::Center)
+                            .style(move |theme: &Theme| container::Style {
+                                border: iced::border::Border {
+                                    color: if is_selected {
+                                        theme::PRIMARY
+                                    } else {
+                                        if theme == &Theme::Dark {
+                                            theme::BORDER_DARK
+                                        } else {
+                                            theme::BORDER_LIGHT
+                                        }
+                                    },
+                                    width: 1.5,
+                                    radius: 4.0.into(),
+                                },
+                                ..Default::default()
+                            })
+                        )
+                        .on_press(Message::SelectEmployee(emp_idx))
+                        .padding(0)
+                        .style(|_, _| button::Style::default()) // No default button bg
+                    )
+                    .width(Length::Fixed(60.0))
+                    .align_x(Alignment::Center)
+                    .align_y(Alignment::Center)
+                    .padding([16, 8])
+                    .style(move |theme: &Theme| container::Style {
+                        background: Some(theme.palette().background.into()),
+                        ..Default::default()
+                    });
+
                     let name_cell = container(
-                        column![
-                            text(&employee.name).size(14).font(iced::font::Font {
+                        row![
+                            text(&employee.name).size(16).font(iced::font::Font {
                                 weight: iced::font::Weight::Semibold,
                                 ..Default::default()
                             }),
@@ -182,9 +385,11 @@ impl AttendanceTable {
                                     color: Some(Color::from_rgb(0.6, 0.6, 0.6)), // Gray 400
                                 })
                         ]
+                        .spacing(12)
+                        .align_y(Alignment::Center)
                     )
-                    .width(Length::Fixed(300.0))
-                    .padding([16, 24])
+                    .width(Length::FillPortion(2))
+                    .padding([16, 32])
                     .style(move |theme: &Theme| container::Style {
                          background: Some(theme.palette().background.into()),
                          ..Default::default()
@@ -251,7 +456,7 @@ impl AttendanceTable {
                                     }
                                 })
                             )
-                            .width(Length::Fixed(150.0))
+                            .width(Length::Fill)
                             .align_x(Alignment::Center)
                             .padding([12, 16])
                             .style(move |_t: &Theme| container::Style {
@@ -264,9 +469,10 @@ impl AttendanceTable {
                             })
                             .into()
                         })
-                    ).spacing(0);
+                    )
+                    .width(Length::FillPortion(5)).spacing(0);
 
-                    row![name_cell, day_cells].into()
+                    row![checkbox_cell, name_cell, day_cells].into()
                 })
         );
 
@@ -276,6 +482,10 @@ impl AttendanceTable {
         }).collect::<Vec<_>>();
 
         let footer = row![
+            // Checkbox column spacer
+            container(text(""))
+                .width(Length::Fixed(60.0))
+                .padding([16, 8]),
             container(
                 text("TOTAL EMPLOYEE COUNT")
                     .size(12)
@@ -287,8 +497,8 @@ impl AttendanceTable {
                         color: Some(Color::from_rgb(0.6, 0.6, 0.6)),
                     })
             )
-            .width(Length::Fixed(300.0))
-            .padding([16, 24]),
+            .width(Length::FillPortion(2))
+            .padding([16, 32]),
         ]
         .push(row(totals.iter().map(|count| {
              container(
@@ -322,7 +532,7 @@ impl AttendanceTable {
                     }
                 })
             )
-            .width(Length::Fixed(150.0))
+            .width(Length::Fill)
             .align_x(Alignment::Center)
             .padding([12, 16])
             .style(move |_t: &Theme| container::Style {
@@ -334,7 +544,8 @@ impl AttendanceTable {
                 ..Default::default()
             })
             .into()
-        })))
+        }))
+        .width(Length::FillPortion(5)))
         .spacing(0);
 
         // Main container
@@ -345,13 +556,10 @@ impl AttendanceTable {
                 .height(Length::Fill),
             footer
         ]
-        .width(Length::Fixed(1050.0));
+        .width(Length::Fill); // Was fixed
 
         container(
-            scrollable(content)
-                .direction(scrollable::Direction::Horizontal(scrollable::Scrollbar::default()))
-                .width(Length::Fill)
-                .height(Length::Fill)
+            content
         )
         .style(move |theme: &Theme| {
             let palette = theme.palette();

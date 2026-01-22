@@ -3110,6 +3110,7 @@ dependencies = [
  "iced",
  "lucide-icons",
  "once_cell",
+ "tokio",
 ]
 
 [[package]]

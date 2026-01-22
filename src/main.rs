@@ -51,7 +51,7 @@ impl RostrApp {
         match message {
             Message::ActionBar(_) => {}
             Message::AttendanceTable(msg) => {
-                self.attendance_table.update(msg);
+                return self.attendance_table.update(msg).map(Message::AttendanceTable);
             }
             Message::TopBar(top_bar_msg) => match top_bar_msg {
                 TopBarMessage::SearchChanged(query) => self.search_query = query,
