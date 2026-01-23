@@ -96,9 +96,10 @@ impl RostrApp {
 
     fn view(&self) -> Element<'_, Message> {
         let date_str = self.current_date.format("%B %Y").to_string();
+        let employee_count = self.attendance_table.len();
         let top_bar = TopBar::view(
             date_str,
-            "Monthly Attendance Overview • 42 Active Employees".to_string(),
+            format!("Monthly Attendance Overview • {} Active Employees", employee_count),
             &self.search_query,
             self.is_dark,
         )

@@ -265,6 +265,10 @@ impl AttendanceTable {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.employees.len()
+    }
+
     pub fn view(&self, is_dark: bool) -> Element<Message> {
         let days = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"];
 
@@ -289,7 +293,7 @@ impl AttendanceTable {
                 }),
             container(
                 row![
-                    text("EMPLOYEE").size(12).font(iced::font::Font {
+                    text("EMPLOYEE").size(12.5).font(iced::font::Font {
                         weight: iced::font::Weight::Bold,
                         ..Default::default()
                     }),
@@ -515,7 +519,8 @@ impl AttendanceTable {
 
                     row![checkbox_cell, name_cell, day_cells].into()
                 })
-        );
+        )
+        .spacing(-1.0);
 
         // Footer
         let totals = (0..5).map(|day_idx| {
