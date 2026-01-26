@@ -1,6 +1,9 @@
 mod theme;
 mod top_bar;
 mod action_bar;
+mod attendance_table;
+
+use attendance_table::{AttendanceTable, Message as AttendanceTableMessage};
 use action_bar::{ActionBar, Message as ActionBarMessage};
 use chrono::{Datelike, Local, NaiveDate};
 use iced::task::Task;
@@ -21,6 +24,7 @@ struct RostrApp {
     is_dark: bool,
     search_query: String,
     current_date: NaiveDate,
+    attendance_table: AttendanceTable,
 }
 
 impl Default for RostrApp {
@@ -30,6 +34,7 @@ impl Default for RostrApp {
             is_dark: false,
             search_query: String::new(),
             current_date: NaiveDate::from_ymd_opt(now.year(), now.month(), 1).unwrap(),
+            attendance_table: AttendanceTable::new(),
         }
     }
 }
@@ -38,12 +43,16 @@ impl Default for RostrApp {
 enum Message {
     TopBar(TopBarMessage),
     ActionBar(ActionBarMessage),
+    AttendanceTable(AttendanceTableMessage),
 }
 
 impl RostrApp {
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::ActionBar(_) => {}
+            Message::AttendanceTable(msg) => {
+                return self.attendance_table.update(msg).map(Message::AttendanceTable);
+            }
             Message::TopBar(top_bar_msg) => match top_bar_msg {
                 TopBarMessage::SearchChanged(query) => self.search_query = query,
                 TopBarMessage::ToggleTheme => self.is_dark = !self.is_dark,
@@ -87,17 +96,30 @@ impl RostrApp {
 
     fn view(&self) -> Element<'_, Message> {
         let date_str = self.current_date.format("%B %Y").to_string();
+        let employee_count = self.attendance_table.len();
         let top_bar = TopBar::view(
             date_str,
-            "Monthly Attendance Overview • 42 Active Employees".to_string(),
+            format!("Monthly Attendance Overview • {} Active Employees", employee_count),
             &self.search_query,
             self.is_dark,
         )
         .map(Message::TopBar);
 
         let action_bar = ActionBar::view(self.is_dark).map(Message::ActionBar);
+        let attendance_table = self.attendance_table.view(self.is_dark).map(Message::AttendanceTable);
 
-        container(column![top_bar, container(action_bar).padding(Padding::from([24, 32]))])
+        container(
+            column![
+                top_bar,
+                container(action_bar).padding(Padding::from([24, 32])),
+                container(attendance_table).padding(Padding {
+                    top: 0.0,
+                    right: 32.0,
+                    bottom: 32.0,
+                    left: 32.0,
+                })
+            ]
+        )
             .width(Length::Fill)
             .height(Length::Fill)
             .style(move |theme: &Theme| {
