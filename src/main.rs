@@ -3,10 +3,12 @@ mod top_bar;
 mod action_bar;
 mod attendance_table;
 mod modals;
+mod toasts;
 
 use attendance_table::{AttendanceTable, Message as AttendanceTableMessage, Employee};
 use action_bar::{ActionBar, Message as ActionBarMessage};
 use modals::{Modal, Message as ModalMessage, EmployeeForm};
+use toasts::{Toast, Status};
 use chrono::{Datelike, Local, NaiveDate};
 use iced::task::Task;
 use iced::widget::{column, container, stack};
@@ -19,6 +21,7 @@ pub fn main() -> iced::Result {
         .title("rostr")
         .theme(RostrApp::theme)
         .font(LUCIDE_FONT_BYTES)
+        .subscription(RostrApp::subscription)
         .run()
 }
 
@@ -28,6 +31,8 @@ struct RostrApp {
     current_date: NaiveDate,
     attendance_table: AttendanceTable,
     modal: Modal,
+    toasts: Vec<Toast>,
+    toast_counter: u64,
 }
 
 impl Default for RostrApp {
@@ -39,6 +44,8 @@ impl Default for RostrApp {
             current_date: NaiveDate::from_ymd_opt(now.year(), now.month(), 1).unwrap(),
             attendance_table: AttendanceTable::new(),
             modal: Modal::None,
+            toasts: Vec::new(),
+            toast_counter: 0,
         }
     }
 }
@@ -49,11 +56,41 @@ enum Message {
     ActionBar(ActionBarMessage),
     AttendanceTable(AttendanceTableMessage),
     Modal(ModalMessage),
+    ToastTimeout(u64),
+    CloseToast(u64),
+    Tick,
 }
 
 impl RostrApp {
+    fn show_toast(&mut self, title: String, body: String, status: toasts::Status) -> Task<Message> {
+        self.toast_counter += 1;
+        let id = self.toast_counter;
+        self.toasts.push(toasts::Toast {
+            id,
+            title,
+            body,
+            status,
+            created_at: std::time::Instant::now(),
+        });
+
+        Task::perform(
+            async move {
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                id
+            },
+            Message::ToastTimeout,
+        )
+    }
+
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::Tick => {},
+            Message::ToastTimeout(id) => {
+                self.toasts.retain(|t| t.id != id);
+            }
+            Message::CloseToast(id) => {
+                self.toasts.retain(|t| t.id != id);
+            }
             Message::ActionBar(msg) => match msg {
                 ActionBarMessage::AddEmployee => {
                     self.modal = Modal::AddEmployee(EmployeeForm::default());
@@ -109,42 +146,70 @@ impl RostrApp {
                     self.modal = Modal::None;
                 }
                 ModalMessage::SubmitAdd => {
-                    if let Modal::AddEmployee(form) = &self.modal {
-                        // Create new employee from form
-                        let new_employee = Employee {
+                    let new_employee = if let Modal::AddEmployee(form) = &self.modal {
+                        Some(Employee {
                             name: if form.name.is_empty() { "New Employee".to_string() } else { form.name.clone() },
                             role: form.role.clone().unwrap_or("Role".to_string()),
-                            sex: form.sex.clone().unwrap_or("Other".to_string()),
+                            sex: form.sex.clone().unwrap_or("Male".to_string()),
                             days_per_week: form.days_per_week.unwrap_or(0),
                             mentee: form.mentee.clone().filter(|s| s != "None"),
                             mentor: form.mentor.clone().filter(|s| s != "None"),
                             attendance: form.attendance,
-                        };
-                        self.attendance_table.employees.push(new_employee);
+                        })
+                    } else {
+                        None
+                    };
+
+                    if let Some(employee) = new_employee {
+                        let name = employee.name.clone();
+                        self.attendance_table.employees.push(employee);
                         self.modal = Modal::None;
+                        return self.show_toast("Employee Added".to_string(), format!("{} has been successfully added.", name), Status::Success);
                     }
                 }
                 ModalMessage::SubmitEdit(idx) => {
-                     if let Modal::EditEmployee(_, form) = &self.modal {
-                        if let Some(employee) = self.attendance_table.employees.get_mut(idx) {
-                            employee.name = form.name.clone();
-                            employee.role = form.role.clone().unwrap_or_default();
-                            employee.sex = form.sex.clone().unwrap_or_default();
-                            employee.days_per_week = form.days_per_week.unwrap_or(0);
-                            employee.mentee = form.mentee.clone().filter(|s| s != "None");
-                            employee.mentor = form.mentor.clone().filter(|s| s != "None");
-                            employee.attendance = form.attendance;
+                    let update_data = if let Modal::EditEmployee(_, form) = &self.modal {
+                         Some((
+                            form.name.clone(),
+                            form.role.clone().unwrap_or_default(),
+                            form.sex.clone().unwrap_or_default(),
+                            form.days_per_week.unwrap_or(0),
+                            form.mentee.clone().filter(|s| s != "None"),
+                            form.mentor.clone().filter(|s| s != "None"),
+                            form.attendance,
+                        ))
+                    } else {
+                        None
+                    };
+
+                    if let Some((name, role, sex, days, mentee, mentor, attendance)) = update_data {
+                         if let Some(employee) = self.attendance_table.employees.get_mut(idx) {
+                            employee.name = name.clone();
+                            employee.role = role;
+                            employee.sex = sex;
+                            employee.days_per_week = days;
+                            employee.mentee = mentee;
+                            employee.mentor = mentor;
+                            employee.attendance = attendance;
+                            
+                            self.modal = Modal::None;
+                            return self.show_toast("Employee Updated".to_string(), format!("{}'s details have been updated.", name), Status::Success);
                         }
-                        self.modal = Modal::None;
                     }
+                    self.modal = Modal::None;
                 }
                 ModalMessage::ConfirmDelete(idx) => {
+                    let mut deleted_name = String::new();
                     if idx < self.attendance_table.employees.len() {
+                        deleted_name = self.attendance_table.employees[idx].name.clone();
                         self.attendance_table.employees.remove(idx);
                         // Adjust selection if needed or clear it
                         self.attendance_table.selected_employee = None;
                     }
                     self.modal = Modal::None;
+                    if !deleted_name.is_empty() {
+                        return self.show_toast("Employee Deleted".to_string(), format!("{} has been removed.", deleted_name), Status::Success);
+                    }
                 }
                 // Handle form updates
                 ModalMessage::NameChanged(name) => {
@@ -202,6 +267,14 @@ impl RostrApp {
         }
     }
 
+    fn subscription(&self) -> iced::Subscription<Message> {
+        if !self.toasts.is_empty() {
+            iced::time::every(std::time::Duration::from_millis(10)).map(|_| Message::Tick)
+        } else {
+            iced::Subscription::none()
+        }
+    }
+
     fn view(&self) -> Element<'_, Message> {
         let date_str = self.current_date.format("%B %Y").to_string();
         let employee_count = self.attendance_table.len();
@@ -239,10 +312,12 @@ impl RostrApp {
             });
 
         let modal = modals::view(&self.modal, self.is_dark).map(Message::Modal);
+        let toasts = toasts::view(&self.toasts, Message::CloseToast);
 
         stack![
             content,
-            modal
+            modal,
+            toasts
         ].into()
     }
 }
