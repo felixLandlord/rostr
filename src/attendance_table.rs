@@ -24,13 +24,17 @@ impl AttendanceStatus {
 pub struct Employee {
     pub name: String,
     pub role: String,
+    pub sex: String,
+    pub days_per_week: u8,
+    pub mentee: Option<String>,
+    pub mentor: Option<String>,
     pub attendance: [AttendanceStatus; 5], // Mon-Fri
 }
 
 #[derive(Debug, Clone)]
 pub struct AttendanceTable {
-    employees: Vec<Employee>,
-    selected_employee: Option<usize>,
+    pub employees: Vec<Employee>,
+    pub selected_employee: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -47,6 +51,10 @@ impl AttendanceTable {
             Employee {
                 name: "Sarah Jenkins".to_string(),
                 role: "UX Designer".to_string(),
+                sex: "Female".to_string(),
+                days_per_week: 5,
+                mentee: None,
+                mentor: None,
                 attendance: [
                     AttendanceStatus::Office,
                     AttendanceStatus::Office,
@@ -58,6 +66,10 @@ impl AttendanceTable {
             Employee {
                 name: "Michael Ross".to_string(),
                 role: "Product Manager".to_string(),
+                sex: "Male".to_string(),
+                days_per_week: 5,
+                mentee: None,
+                mentor: None,
                 attendance: [
                     AttendanceStatus::Remote,
                     AttendanceStatus::Office,
@@ -69,156 +81,16 @@ impl AttendanceTable {
             Employee {
                 name: "Emily Chen".to_string(),
                 role: "Frontend Dev".to_string(),
+                sex: "Female".to_string(),
+                days_per_week: 5,
+                mentee: None,
+                mentor: None,
                 attendance: [
                     AttendanceStatus::Office,
                     AttendanceStatus::Remote,
                     AttendanceStatus::Office,
                     AttendanceStatus::Office,
                     AttendanceStatus::Remote,
-                ],
-            },
-            Employee {
-                name: "David Kim".to_string(),
-                role: "Backend Dev".to_string(),
-                attendance: [
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Office,
-                ],
-            },
-            Employee {
-                name: "Linda Martinez".to_string(),
-                role: "HR Director".to_string(),
-                attendance: [
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Remote,
-                ],
-            },
-            Employee {
-                name: "Robert Fox".to_string(),
-                role: "DevOps".to_string(),
-                attendance: [
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                ],
-            },
-            // Added Dummy Data
-            Employee {
-                name: "Alice Cooper".to_string(),
-                role: "Marketing Lead".to_string(),
-                attendance: [
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                ],
-            },
-            Employee {
-                name: "Emmanuel Felix Nunoo".to_string(),
-                role: "Sales Manager".to_string(),
-                attendance: [
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Remote,
-                ],
-            },
-            Employee {
-                name: "Charlie Brown".to_string(),
-                role: "Intern".to_string(),
-                attendance: [
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Office,
-                ],
-            },
-            Employee {
-                name: "Diana Prince".to_string(),
-                role: "Security Analyst".to_string(),
-                attendance: [
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Remote,
-                ],
-            },
-            Employee {
-                name: "Evan Wright".to_string(),
-                role: "Data Scientist".to_string(),
-                attendance: [
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                ],
-            },
-            Employee {
-                name: "Fiona Gallagher".to_string(),
-                role: "HR Assistant".to_string(),
-                attendance: [
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Remote,
-                ],
-            },
-            Employee {
-                name: "George Martin".to_string(),
-                role: "Copywriter".to_string(),
-                attendance: [
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                ],
-            },
-            Employee {
-                name: "Hannah Lee".to_string(),
-                role: "QA Engineer".to_string(),
-                attendance: [
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Remote,
-                ],
-            },
-            Employee {
-                name: "Ian Somerhalder".to_string(),
-                role: "System Admin".to_string(),
-                attendance: [
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Office,
-                ],
-            },
-            Employee {
-                name: "Julia Roberts".to_string(),
-                role: "Receptionist".to_string(),
-                attendance: [
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
                 ],
             },
         ];
@@ -303,7 +175,7 @@ impl AttendanceTable {
             )
             .width(Length::FillPortion(2))
             .padding([17, 32])
-            .style(move |theme: &Theme| container::Style {
+            .style(move |_theme: &Theme| container::Style {
                 border: iced::border::Border {
                     color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
                     width: 1.0,
@@ -580,7 +452,6 @@ impl AttendanceTable {
                 )
                 .padding([4, 12])
                 .style(move |theme: &Theme| {
-                    let palette = theme.palette();
                     container::Style {
                         background: Some(if theme == &Theme::Dark {
                             Color::from_rgba(0.1, 0.3, 0.8, 0.3).into()
