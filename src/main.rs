@@ -336,6 +336,20 @@ impl RostrApp {
                          return self.show_toast("No Schedule".to_string(), "Please generate a schedule first.".to_string(), Status::Info);
                     }
                 }
+                ActionBarMessage::Undo => {
+                    // Logic:
+                    // 1. Check if there is a saved schedule for the current month
+                    // 2. If yes, revert to it (update current_schedule and UI)
+                    // 3. If no, clear current_schedule and reset UI to N/A (which happens automatically if current_schedule is None)
+                    
+                    self.load_schedule_for_date();
+                    
+                    if self.current_schedule.is_some() {
+                        return self.show_toast("Changes Undone".to_string(), "Reverted to the last saved schedule.".to_string(), Status::Success);
+                    } else {
+                        return self.show_toast("Changes Undone".to_string(), "Reverted to empty state (no saved schedule).".to_string(), Status::Info);
+                    }
+                }
                 ActionBarMessage::Import => {
                     return Task::perform(async {
                         let _ = rfd::AsyncFileDialog::new().pick_file().await;
