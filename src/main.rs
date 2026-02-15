@@ -7,7 +7,7 @@ mod toasts;
 
 use attendance_table::{AttendanceTable, Message as AttendanceTableMessage, Employee};
 use action_bar::{ActionBar, Message as ActionBarMessage};
-use modals::{Modal, Message as ModalMessage, EmployeeForm};
+use modals::{Modal, Message as ModalMessage, EmployeeForm, ReportData};
 use toasts::{Toast, Status};
 use chrono::{Datelike, Local, NaiveDate};
 use iced::task::Task;
@@ -58,6 +58,7 @@ enum Message {
     Modal(ModalMessage),
     ToastTimeout(u64),
     CloseToast(u64),
+    FileActionComplete,
     Tick,
 }
 
@@ -82,9 +83,93 @@ impl RostrApp {
         )
     }
 
+    fn calculate_report(&self) -> ReportData {
+        let employees = &self.attendance_table.employees;
+        let total_employees = employees.len();
+        let mut total_males = 0;
+        let mut total_females = 0;
+        let mut males_per_day = [0; 5];
+        let mut females_per_day = [0; 5];
+        let mut roles_per_day: [std::collections::HashMap<String, usize>; 5] = Default::default();
+        let mut daily_attendance = [0; 5];
+        let mut daily_remote = [0; 5];
+
+        for employee in employees {
+            if employee.sex == "Male" {
+                total_males += 1;
+            } else if employee.sex == "Female" {
+                total_females += 1;
+            }
+
+            for (day, status) in employee.attendance.iter().enumerate() {
+                match status {
+                    attendance_table::AttendanceStatus::Office => {
+                        daily_attendance[day] += 1;
+
+                        if employee.sex == "Male" {
+                            males_per_day[day] += 1;
+                        } else if employee.sex == "Female" {
+                            females_per_day[day] += 1;
+                        }
+
+                        *roles_per_day[day].entry(employee.role.clone()).or_insert(0) += 1;
+                    }
+                    attendance_table::AttendanceStatus::Remote => {
+                        daily_remote[day] += 1;
+                    }
+                }
+            }
+        }
+
+        let days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+        let mut max_day_idx = 0;
+        let mut min_day_idx = 0;
+        for i in 1..5 {
+            if daily_attendance[i] > daily_attendance[max_day_idx] {
+                max_day_idx = i;
+            }
+            if daily_attendance[i] < daily_attendance[min_day_idx] {
+                min_day_idx = i;
+            }
+        }
+
+        let mut daily_office_percentage = [0.0; 5];
+        let mut daily_remote_percentage = [0.0; 5];
+        
+        for i in 0..5 {
+            let total_for_day = daily_attendance[i] + daily_remote[i];
+            if total_for_day > 0 {
+                daily_office_percentage[i] = (daily_attendance[i] as f32 / total_for_day as f32) * 100.0;
+                daily_remote_percentage[i] = (daily_remote[i] as f32 / total_for_day as f32) * 100.0;
+            }
+        }
+
+        let total_seats = 100.0;
+        let mut office_utilization_per_day = [0.0; 5];
+        for i in 0..5 {
+             office_utilization_per_day[i] = (daily_attendance[i] as f32 / total_seats) * 100.0;
+        }
+
+        ReportData {
+            date: self.current_date.format("%B %Y").to_string(),
+            total_employees,
+            total_males,
+            total_females,
+            males_per_day,
+            females_per_day,
+            roles_per_day,
+            day_most_attendance: days[max_day_idx].to_string(),
+            day_least_attendance: days[min_day_idx].to_string(),
+            daily_remote_percentage,
+            daily_office_percentage,
+            office_utilization_per_day,
+        }
+    }
+
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Tick => {},
+            Message::FileActionComplete => {},
             Message::ToastTimeout(id) => {
                 self.toasts.retain(|t| t.id != id);
             }
@@ -106,6 +191,26 @@ impl RostrApp {
                      if let Some(idx) = self.attendance_table.selected_employee {
                         self.modal = Modal::DeleteEmployee(idx);
                      }
+                }
+                ActionBarMessage::Report => {
+                    if let Some(idx) = self.attendance_table.selected_employee {
+                        if let Some(employee) = self.attendance_table.employees.get(idx) {
+                             self.modal = Modal::EmployeeReport(employee.clone(), self.current_date.format("%B %Y").to_string());
+                        }
+                    } else {
+                        let data = self.calculate_report();
+                        self.modal = Modal::GeneralReport(data);
+                    }
+                }
+                ActionBarMessage::Import => {
+                    return Task::perform(async {
+                        let _ = rfd::AsyncFileDialog::new().pick_file().await;
+                    }, |_| Message::FileActionComplete);
+                }
+                ActionBarMessage::Export => {
+                    return Task::perform(async {
+                        let _ = rfd::AsyncFileDialog::new().save_file().await;
+                    }, |_| Message::FileActionComplete);
                 }
                 _ => {}
             },
@@ -145,6 +250,13 @@ impl RostrApp {
                 ModalMessage::Cancel => {
                     self.modal = Modal::None;
                 }
+                ModalMessage::Close => {
+                    self.modal = Modal::None;
+                }
+                ModalMessage::DownloadPdf => {
+                    // Placeholder for download PDF logic
+                    return self.show_toast("Download PDF".to_string(), "PDF Download started...".to_string(), Status::Success);
+                }
                 ModalMessage::SubmitAdd => {
                     let new_employee = if let Modal::AddEmployee(form) = &self.modal {
                         Some(Employee {
@@ -153,12 +265,13 @@ impl RostrApp {
                             sex: form.sex.clone().unwrap_or("Male".to_string()),
                             days_per_week: form.days_per_week.unwrap_or(0),
                             mentee: form.mentee.clone().filter(|s| s != "None"),
-                            mentor: form.mentor.clone().filter(|s| s != "None"),
-                            attendance: form.attendance,
-                        })
-                    } else {
-                        None
-                    };
+                        mentor: form.mentor.clone().filter(|s| s != "None"),
+                        attendance: form.attendance,
+                        past_attendance: vec![],
+                    })
+                } else {
+                    None
+                };
 
                     if let Some(employee) = new_employee {
                         let name = employee.name.clone();

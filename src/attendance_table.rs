@@ -29,6 +29,7 @@ pub struct Employee {
     pub mentee: Option<String>,
     pub mentor: Option<String>,
     pub attendance: [AttendanceStatus; 5], // Mon-Fri
+    pub past_attendance: Vec<(String, [AttendanceStatus; 5])>, // Label (e.g. "Dec 2025") and attendance
 }
 
 #[derive(Debug, Clone)]
@@ -62,6 +63,28 @@ impl AttendanceTable {
                     AttendanceStatus::Office,
                     AttendanceStatus::Office,
                 ],
+                past_attendance: vec![
+                    (
+                        "Dec 2025".to_string(),
+                        [
+                            AttendanceStatus::Remote,
+                            AttendanceStatus::Office,
+                            AttendanceStatus::Office,
+                            AttendanceStatus::Remote,
+                            AttendanceStatus::Office,
+                        ]
+                    ),
+                    (
+                        "Nov 2025".to_string(),
+                        [
+                            AttendanceStatus::Office,
+                            AttendanceStatus::Remote,
+                            AttendanceStatus::Office,
+                            AttendanceStatus::Office,
+                            AttendanceStatus::Remote,
+                        ]
+                    )
+                ],
             },
             Employee {
                 name: "Michael Ross".to_string(),
@@ -77,6 +100,7 @@ impl AttendanceTable {
                     AttendanceStatus::Remote,
                     AttendanceStatus::Office,
                 ],
+                past_attendance: vec![],
             },
             Employee {
                 name: "Emily Chen".to_string(),
@@ -91,6 +115,18 @@ impl AttendanceTable {
                     AttendanceStatus::Office,
                     AttendanceStatus::Office,
                     AttendanceStatus::Remote,
+                ],
+                past_attendance: vec![
+                     (
+                        "Dec 2025".to_string(),
+                        [
+                            AttendanceStatus::Office,
+                            AttendanceStatus::Office,
+                            AttendanceStatus::Office,
+                            AttendanceStatus::Office,
+                            AttendanceStatus::Office,
+                        ]
+                    )
                 ],
             },
         ];
@@ -141,7 +177,7 @@ impl AttendanceTable {
         self.employees.len()
     }
 
-    pub fn view(&self, is_dark: bool) -> Element<Message> {
+    pub fn view(&self, is_dark: bool) -> Element<'_, Message> {
         let days = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"];
 
         // Header
@@ -150,7 +186,7 @@ impl AttendanceTable {
             container(text(" ").size(14))
                 .width(Length::Fixed(60.0))
                 .padding([16, 8])
-                .style(move |theme: &Theme| container::Style {
+                .style(move |_theme: &Theme| container::Style {
                     border: iced::border::Border {
                         color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
                         width: 1.0,
@@ -404,7 +440,7 @@ impl AttendanceTable {
             container(text(" ").size(12))
                 .width(Length::Fixed(60.0))
                 .padding([16, 8])
-                .style(move |theme: &Theme| container::Style {
+                .style(move |_theme: &Theme| container::Style {
                     border: iced::border::Border {
                         color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
                         width: 1.0,
@@ -430,7 +466,7 @@ impl AttendanceTable {
             )
             .width(Length::FillPortion(2))
             .padding([16, 32])
-            .style(move |theme: &Theme| container::Style {
+            .style(move |_theme: &Theme| container::Style {
                 border: iced::border::Border {
                     color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
                     width: 1.0,
