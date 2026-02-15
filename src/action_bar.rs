@@ -22,7 +22,7 @@ pub enum Message {
 }
 
 impl ActionBar {
-    pub fn view<'a>(is_dark: bool) -> Element<'a, Message> {
+    pub fn view<'a>(is_dark: bool, has_selection: bool) -> Element<'a, Message> {
         let border_color = if is_dark { BORDER_DARK } else { BORDER_LIGHT };
         let _text_color = if is_dark { TEXT_DARK } else { TEXT_LIGHT };
         let muted_color = if is_dark {
@@ -104,7 +104,7 @@ impl ActionBar {
         let undo_btn = ghost_button(
             icon_undo_2(),
             "Undo Changes",
-            Message::Undo,
+            Some(Message::Undo),
             is_dark,
             muted_color,
             false,
@@ -114,7 +114,7 @@ impl ActionBar {
         let add_btn = ghost_button(
             icon_user_plus(),
             "Add Employee",
-            Message::AddEmployee,
+            Some(Message::AddEmployee),
             is_dark,
             muted_color,
             false,
@@ -124,7 +124,7 @@ impl ActionBar {
         let edit_btn = ghost_button(
             icon_pencil(),
             "Edit Employee",
-            Message::EditEmployee,
+            if has_selection { Some(Message::EditEmployee) } else { None },
             is_dark,
             muted_color,
             false,
@@ -134,7 +134,7 @@ impl ActionBar {
         let delete_btn = ghost_button(
             icon_trash_2(),
             "Delete Employee",
-            Message::DeleteEmployee,
+            if has_selection { Some(Message::DeleteEmployee) } else { None },
             is_dark,
             muted_color,
             true,
@@ -144,7 +144,7 @@ impl ActionBar {
         let report_btn = ghost_button(
             icon_chart_no_axes_column(),
             "Generation Report",
-            Message::Report,
+            Some(Message::Report),
             is_dark,
             muted_color,
             false,
@@ -154,7 +154,7 @@ impl ActionBar {
         let import_btn = ghost_button(
             icon_upload(),
             "Import",
-            Message::Import,
+            Some(Message::Import),
             is_dark,
             muted_color,
             false,
@@ -164,7 +164,7 @@ impl ActionBar {
         let export_btn = ghost_button(
             icon_download(),
             "Export",
-            Message::Export,
+            Some(Message::Export),
             is_dark,
             muted_color,
             false,
@@ -226,7 +226,7 @@ impl ActionBar {
                     offset: iced::Vector::new(0.0, 2.0),
                     blur_radius: 10.0,
                 },
-                ..container::Style::default()
+                ..Default::default()
             }
         })
         .into()
@@ -236,15 +236,18 @@ impl ActionBar {
 fn ghost_button<'a, Message: Clone + 'a>(
     icon: iced::widget::Text<'a>,
     label: &'a str,
-    msg: Message,
+    msg: Option<Message>,
     is_dark: bool,
     muted_color: Color,
     is_danger: bool,
 ) -> Element<'a, Message> {
-    button(
+    let is_disabled = msg.is_none();
+    let btn = button(
         row![
             icon.size(18).style(move |_| text::Style {
-                color: Some(if is_danger {
+                color: Some(if is_disabled {
+                     if is_dark { Color::from_rgb(0.3, 0.3, 0.3) } else { Color::from_rgb(0.8, 0.8, 0.8) }
+                } else if is_danger {
                     Color::from_rgb(0.9, 0.2, 0.2)
                 } else {
                     muted_color
@@ -254,13 +257,34 @@ fn ghost_button<'a, Message: Clone + 'a>(
                 weight: iced::font::Weight::Medium,
                 ..Default::default()
             })
+            .style(move |_| text::Style {
+                color: Some(if is_disabled {
+                     if is_dark { Color::from_rgb(0.3, 0.3, 0.3) } else { Color::from_rgb(0.8, 0.8, 0.8) }
+                } else {
+                     if is_dark { TEXT_MUTED_DARK } else { TEXT_MUTED_LIGHT } // Default text color
+                })
+            })
         ]
         .spacing(8)
         .align_y(Alignment::Center),
     )
-    .on_press(msg)
-    .padding([8, 12])
-    .style(move |_, status| {
+    .padding([8, 12]);
+
+    let btn = if let Some(m) = msg {
+        btn.on_press(m)
+    } else {
+        btn
+    };
+
+    btn.style(move |_, status| {
+        if is_disabled {
+            return button::Style {
+                background: None,
+                text_color: if is_dark { Color::from_rgb(0.3, 0.3, 0.3) } else { Color::from_rgb(0.8, 0.8, 0.8) },
+                ..button::Style::default()
+            };
+        }
+
         let bg = if status == button::Status::Hovered {
             if is_danger {
                 if is_dark {
