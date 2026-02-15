@@ -7,6 +7,14 @@ edition = "2024"
 iced = { version = "0.14", features = ["canvas", "image", "svg", "advanced", "tokio"] }
 lucide-icons = { version = "0.562", features = ["iced"] }
 once_cell = "1.19"
-chrono = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
 tokio = { version = "1.49.0", features = ["time"] }
 rfd = "0.17.2"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+csv = "1.4.0"
+rust_xlsxwriter = "0.93.0"
+rusqlite = { version = "0.38.0", features = ["bundled", "chrono"] }
+rand = "0.8.5"
+thiserror = "2.0.18"
+dirs = "6.0.0"
