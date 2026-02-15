@@ -1,8 +1,8 @@
 use iced::widget::{button, column, container, pick_list, row, text, text_input, scrollable};
 use iced::{Alignment, Color, Element, Length, Padding, Theme};
 use lucide_icons::iced::{icon_calendar, icon_calendar_check_2, icon_calendar_plus_2, icon_chart_no_axes_column, icon_user_plus, icon_user_round_pen, icon_x};
-use crate::theme;
-use crate::attendance_table::{AttendanceStatus, Employee};
+use crate::ui::theme;
+use crate::ui::attendance_table::{AttendanceStatus, Employee};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]

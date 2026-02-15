@@ -3,7 +3,7 @@ use iced::task::Task;
 use iced::{Alignment, Color, Element, Length, Theme};
 use std::time::Duration;
 
-use crate::theme;
+use crate::ui::theme;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AttendanceStatus {

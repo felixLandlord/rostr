@@ -1,6 +1,6 @@
 use iced::widget::{button, column, container, row, text};
 use iced::{Alignment, Color, Element, Length, Theme};
-use crate::theme;
+use crate::ui::theme;
 use lucide_icons::iced::{icon_check, icon_info, icon_triangle_alert, icon_x};
 use std::time::Instant;
 

@@ -1,20 +1,16 @@
-mod theme;
-mod top_bar;
-mod action_bar;
-mod attendance_table;
-mod modals;
-mod toasts;
+mod core;
+mod ui;
 
-use attendance_table::{AttendanceTable, Message as AttendanceTableMessage, Employee};
-use action_bar::{ActionBar, Message as ActionBarMessage};
-use modals::{Modal, Message as ModalMessage, EmployeeForm, ReportData};
-use toasts::{Toast, Status};
+use ui::attendance_table::{self, AttendanceTable, Message as AttendanceTableMessage, Employee};
+use ui::action_bar::{ActionBar, Message as ActionBarMessage};
+use ui::modals::{self, Modal, Message as ModalMessage, EmployeeForm, ReportData};
+use ui::toasts::{self, Toast, Status};
 use chrono::{Datelike, Local, NaiveDate};
 use iced::task::Task;
 use iced::widget::{column, container, stack};
 use iced::{Element, Length, Padding, Theme};
 use lucide_icons::LUCIDE_FONT_BYTES;
-use top_bar::{Message as TopBarMessage, TopBar};
+use ui::top_bar::{Message as TopBarMessage, TopBar};
 
 pub fn main() -> iced::Result {
     iced::application(RostrApp::default, RostrApp::update, RostrApp::view)

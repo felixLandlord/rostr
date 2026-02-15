@@ -1,4 +1,4 @@
-use crate::theme::*;
+use crate::ui::theme::*;
 use iced::widget::{Space, button, container, row, text};
 use iced::{Alignment, Border, Color, Element, Theme};
 use lucide_icons::iced::{

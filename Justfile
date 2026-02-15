@@ -69,6 +69,10 @@ build-windows-msvc:
 build-windows-gnu:
     cargo build --release --target x86_64-pc-windows-gnu
 
+# Run the application in check mode
+check:
+    cargo check
+
 # Run tests
 test:
     cargo test
