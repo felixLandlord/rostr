@@ -23,6 +23,10 @@ impl Engine {
         month: u32,
     ) -> MonthlySchedule {
         let mut schedule = MonthlySchedule::new(year, month);
+        
+        // Track included employees
+        schedule.included_employees = employees.iter().map(|e| e.id).collect();
+        
         let mut day_counts = HashMap::new();
         
         for day in Weekday::all() {
@@ -69,28 +73,36 @@ impl Engine {
         day_counts: &mut HashMap<Weekday, usize>,
     ) -> (Vec<Employee>, Vec<Employee>) {
         let mut flexible = Vec::new();
-        let mut fixed = Vec::new();
+        let mut fully_scheduled = Vec::new();
 
         for emp in employees {
+            // Apply fixed days regardless of whether they need more days
             if !emp.fixed_days.is_empty() {
                 for &day in &emp.fixed_days {
                     schedule.add_employee(day, emp.clone());
                     *day_counts.entry(day).or_default() += 1;
                 }
-                fixed.push(emp.clone());
-            } else {
+            }
+
+            // If they need more days than fixed, they are flexible for the remainder
+            if emp.required_days as usize > emp.fixed_days.len() {
                 flexible.push(emp.clone());
+            } else {
+                fully_scheduled.push(emp.clone());
             }
         }
 
-        (flexible, fixed)
+        (flexible, fully_scheduled)
     }
 
     fn group_by_required_days(&self, employees: &mut [Employee]) -> HashMap<i32, Vec<Employee>> {
         let mut grouped: HashMap<i32, Vec<Employee>> = HashMap::new();
 
         for emp in employees.iter() {
-            grouped.entry(emp.required_days).or_default().push(emp.clone());
+            let remaining = emp.required_days - emp.fixed_days.len() as i32;
+            if remaining > 0 {
+                grouped.entry(remaining).or_default().push(emp.clone());
+            }
         }
 
         let mut rng = thread_rng();
@@ -130,8 +142,19 @@ impl Engine {
                             }
                         }
 
+                        // Filter out combinations that overlap with fixed days
+                        let valid_combinations: Vec<DayCombination> = combinations
+                            .iter()
+                            .filter(|combo| !combo.days.iter().any(|d| emp.fixed_days.contains(d)))
+                            .cloned()
+                            .collect();
+
+                        if valid_combinations.is_empty() {
+                            continue;
+                        }
+
                         let best_combo = self.find_best_combination(
-                            combinations,
+                            &valid_combinations,
                             day_counts,
                             emp,
                             past_schedules,

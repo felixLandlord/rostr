@@ -1,6 +1,6 @@
 use iced::widget::{button, column, container, row, scrollable, text};
 use iced::task::Task;
-use iced::{Alignment, Color, Element, Length, Theme};
+use iced::{Alignment, Color, Element, Length, Theme, Padding};
 use std::time::Duration;
 
 use crate::ui::theme;
@@ -9,6 +9,7 @@ use crate::ui::theme;
 pub enum AttendanceStatus {
     Office,
     Remote,
+    NA,
 }
 
 impl AttendanceStatus {
@@ -16,12 +17,14 @@ impl AttendanceStatus {
         match self {
             Self::Office => Self::Remote,
             Self::Remote => Self::Office,
+            Self::NA => Self::NA, // Not toggleable
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct Employee {
+    pub id: i32,
     pub name: String,
     pub role: String,
     pub sex: String,
@@ -47,94 +50,14 @@ pub enum Message {
 
 impl AttendanceTable {
     pub fn new() -> Self {
-        // Dummy data
-        let employees = vec![
-            Employee {
-                name: "Sarah Jenkins".to_string(),
-                role: "UX Designer".to_string(),
-                sex: "Female".to_string(),
-                days_per_week: 5,
-                mentee: None,
-                mentor: None,
-                attendance: [
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                ],
-                past_attendance: vec![
-                    (
-                        "Dec 2025".to_string(),
-                        [
-                            AttendanceStatus::Remote,
-                            AttendanceStatus::Office,
-                            AttendanceStatus::Office,
-                            AttendanceStatus::Remote,
-                            AttendanceStatus::Office,
-                        ]
-                    ),
-                    (
-                        "Nov 2025".to_string(),
-                        [
-                            AttendanceStatus::Office,
-                            AttendanceStatus::Remote,
-                            AttendanceStatus::Office,
-                            AttendanceStatus::Office,
-                            AttendanceStatus::Remote,
-                        ]
-                    )
-                ],
-            },
-            Employee {
-                name: "Michael Ross".to_string(),
-                role: "Product Manager".to_string(),
-                sex: "Male".to_string(),
-                days_per_week: 5,
-                mentee: None,
-                mentor: None,
-                attendance: [
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Office,
-                ],
-                past_attendance: vec![],
-            },
-            Employee {
-                name: "Emily Chen".to_string(),
-                role: "Frontend Dev".to_string(),
-                sex: "Female".to_string(),
-                days_per_week: 5,
-                mentee: None,
-                mentor: None,
-                attendance: [
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Remote,
-                ],
-                past_attendance: vec![
-                     (
-                        "Dec 2025".to_string(),
-                        [
-                            AttendanceStatus::Office,
-                            AttendanceStatus::Office,
-                            AttendanceStatus::Office,
-                            AttendanceStatus::Office,
-                            AttendanceStatus::Office,
-                        ]
-                    )
-                ],
-            },
-        ];
-
         Self {
-            employees,
+            employees: Vec::new(),
             selected_employee: None,
         }
+    }
+
+    pub fn len(&self) -> usize {
+        self.employees.len()
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -171,10 +94,6 @@ impl AttendanceTable {
                 Task::none()
             }
         }
-    }
-
-    pub fn len(&self) -> usize {
-        self.employees.len()
     }
 
     pub fn view(&self, is_dark: bool) -> Element<'_, Message> {
@@ -375,40 +294,51 @@ impl AttendanceTable {
                                         Color::from_rgb(0.9, 0.9, 0.9) // Gray 200
                                     },
                                 ),
+                                AttendanceStatus::NA => (
+                                    "N/A",
+                                    Color::TRANSPARENT,
+                                    if is_dark { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT },
+                                    if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
+                                ),
                             };
 
-                            container(
-                                button(
-                                    text(label)
-                                        .size(11)
-                                        .font(iced::font::Font {
-                                            weight: iced::font::Weight::Bold,
-                                            ..Default::default()
-                                        })
-                                        .align_x(Alignment::Center)
-                                )
-                                .on_press(Message::ToggleStatus(emp_idx, day_idx))
-                                .padding([6, 16])
-                                .style(move |_t: &Theme, status| {
-                                    let base = button::Style {
-                                        background: Some(bg_color.into()),
-                                        text_color,
-                                        border: iced::border::Border {
-                                            color: border_color,
-                                            width: 1.0,
-                                            radius: 999.0.into(),
-                                        },
+                            let btn = button(
+                                text(label)
+                                    .size(11)
+                                    .font(iced::font::Font {
+                                        weight: iced::font::Weight::Bold,
                                         ..Default::default()
-                                    };
-                                    match status {
-                                        button::Status::Hovered => button::Style {
-                                            background: Some(Color { a: bg_color.a * 1.5, ..bg_color }.into()), // Slightly darker/more opaque
-                                            ..base
-                                        },
-                                        _ => base,
-                                    }
-                                })
+                                    })
+                                    .align_x(Alignment::Center)
                             )
+                            .padding([6, 16])
+                            .style(move |_t: &Theme, status| {
+                                let base = button::Style {
+                                    background: Some(bg_color.into()),
+                                    text_color,
+                                    border: iced::border::Border {
+                                        color: border_color,
+                                        width: 1.0,
+                                        radius: 999.0.into(),
+                                    },
+                                    ..Default::default()
+                                };
+                                match status {
+                                    button::Status::Hovered => button::Style {
+                                        background: Some(Color { a: if bg_color.a == 0.0 { 0.1 } else { bg_color.a * 1.5 }, ..bg_color }.into()),
+                                        ..base
+                                    },
+                                    _ => base,
+                                }
+                            });
+                            
+                            let btn = if *status == AttendanceStatus::NA {
+                                btn // No on_press for NA
+                            } else {
+                                btn.on_press(Message::ToggleStatus(emp_idx, day_idx))
+                            };
+
+                            container(btn)
                             .width(Length::Fill)
                             .align_x(Alignment::Center)
                             .padding([12, 16])
@@ -540,7 +470,7 @@ impl AttendanceTable {
                 .height(Length::Fill),
             footer
         ]
-        .width(Length::Fill); // Was fixed
+        .width(Length::Fill);
 
         container(
             content

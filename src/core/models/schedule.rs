@@ -9,6 +9,8 @@ pub struct MonthlySchedule {
     pub year: i32,
     pub month: u32,
     pub schedules: HashMap<Weekday, Vec<Employee>>,
+    #[serde(default)]
+    pub included_employees: Vec<i32>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -24,6 +26,7 @@ impl MonthlySchedule {
             year,
             month,
             schedules,
+            included_employees: Vec::new(),
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }
@@ -83,6 +86,43 @@ impl MonthlySchedule {
             return Err(format!("invalid month: {}", self.month));
         }
         Ok(())
+    }
+
+    pub fn is_same_content(&self, other: &Self) -> bool {
+        // Compare year and month
+        if self.year != other.year || self.month != other.month {
+            return false;
+        }
+
+        // Compare schedule content (ignore timestamps)
+        // We need to compare the map of employees per day
+        if self.schedules.len() != other.schedules.len() {
+            return false;
+        }
+
+        for (day, employees) in &self.schedules {
+            match other.schedules.get(day) {
+                Some(other_employees) => {
+                    if employees.len() != other_employees.len() {
+                        return false;
+                    }
+                    
+                    // We need to check if the sets of employee IDs are the same for this day
+                    let mut self_ids: Vec<i32> = employees.iter().map(|e| e.id).collect();
+                    let mut other_ids: Vec<i32> = other_employees.iter().map(|e| e.id).collect();
+                    
+                    self_ids.sort();
+                    other_ids.sort();
+                    
+                    if self_ids != other_ids {
+                        return false;
+                    }
+                },
+                None => return false,
+            }
+        }
+
+        true
     }
 }
 

@@ -60,7 +60,8 @@ impl Default for EmployeeForm {
             days_per_week: None,
             mentee: Some("None".to_string()),
             mentor: Some("None".to_string()),
-            attendance: [AttendanceStatus::Remote; 5],
+            attendance: [AttendanceStatus::NA; 5],
+            // attendance: [AttendanceStatus::Remote; 5], // Old default
         }
     }
 }
@@ -108,7 +109,7 @@ const ROLES: &[&str] = &[
 ];
 
 const SEX_OPTIONS: &[&str] = &["Male", "Female"];
-const DAYS_OPTIONS: &[u8] = &[1, 2, 3, 4, 5];
+const DAYS_OPTIONS: &[u8] = &[1, 2, 3, 5];
 const MENTEES: &[&str] = &["None", "Alex Rivera", "Sam Chen", "Jordan Smith"];
 const MENTORS: &[&str] = &["None", "Sarah Jenkins", "Michael Ross", "Elena Rodriguez"];
 

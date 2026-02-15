@@ -1,7 +1,7 @@
 mod core;
 mod ui;
 
-use ui::attendance_table::{self, AttendanceTable, Message as AttendanceTableMessage, Employee};
+use ui::attendance_table::{self, AttendanceTable, Message as AttendanceTableMessage, Employee as UIEmployee, AttendanceStatus};
 use ui::action_bar::{ActionBar, Message as ActionBarMessage};
 use ui::modals::{self, Modal, Message as ModalMessage, EmployeeForm, ReportData};
 use ui::toasts::{self, Toast, Status};
@@ -12,8 +12,25 @@ use iced::{Element, Length, Padding, Theme};
 use lucide_icons::LUCIDE_FONT_BYTES;
 use ui::top_bar::{Message as TopBarMessage, TopBar};
 
+use core::storage::{Database, EmployeeRepository, ScheduleRepository};
+use core::engine::Engine;
+use core::models::{Employee as CoreEmployee, MonthlySchedule, Role, Sex, Weekday};
+use std::str::FromStr;
+
+#[derive(Debug, Clone)]
+pub enum Message {
+    Tick,
+    FileActionComplete,
+    ToastTimeout(u64),
+    CloseToast(u64),
+    ActionBar(ActionBarMessage),
+    AttendanceTable(AttendanceTableMessage),
+    TopBar(TopBarMessage),
+    Modal(ModalMessage),
+}
+
 pub fn main() -> iced::Result {
-    iced::application(RostrApp::default, RostrApp::update, RostrApp::view)
+    iced::application(RostrApp::new, RostrApp::update, RostrApp::view)
         .title("rostr")
         .theme(RostrApp::theme)
         .font(LUCIDE_FONT_BYTES)
@@ -29,36 +46,50 @@ struct RostrApp {
     modal: Modal,
     toasts: Vec<Toast>,
     toast_counter: u64,
+    database: Option<Database>, // Option because it might fail to init
+    current_schedule: Option<MonthlySchedule>,
 }
 
-impl Default for RostrApp {
-    fn default() -> Self {
+impl RostrApp {
+    fn new() -> (Self, Task<Message>) {
         let now = Local::now();
-        Self {
+        let current_date = NaiveDate::from_ymd_opt(now.year(), now.month(), 1).unwrap();
+        
+        let mut app = Self {
             is_dark: false,
             search_query: String::new(),
-            current_date: NaiveDate::from_ymd_opt(now.year(), now.month(), 1).unwrap(),
+            current_date,
             attendance_table: AttendanceTable::new(),
             modal: Modal::None,
             toasts: Vec::new(),
             toast_counter: 0,
+            database: None,
+            current_schedule: None,
+        };
+
+        let mut commands = Vec::new();
+
+        // Initialize Database
+        match Database::new() {
+            Ok(db) => {
+                app.database = Some(db);
+                // Load employees
+                if let Some(db) = &app.database {
+                    if let Ok(conn) = db.get_connection() {
+                        if let Ok(employees) = EmployeeRepository::find_all(&conn) {
+                            app.attendance_table.employees = employees.into_iter().map(core_to_ui_employee).collect();
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                commands.push(app.show_toast("Database Error".to_string(), e.to_string(), Status::Error));
+            }
         }
+
+        (app, Task::batch(commands))
     }
-}
 
-#[derive(Debug, Clone)]
-enum Message {
-    TopBar(TopBarMessage),
-    ActionBar(ActionBarMessage),
-    AttendanceTable(AttendanceTableMessage),
-    Modal(ModalMessage),
-    ToastTimeout(u64),
-    CloseToast(u64),
-    FileActionComplete,
-    Tick,
-}
-
-impl RostrApp {
     fn show_toast(&mut self, title: String, body: String, status: toasts::Status) -> Task<Message> {
         self.toast_counter += 1;
         let id = self.toast_counter;
@@ -77,6 +108,55 @@ impl RostrApp {
             },
             Message::ToastTimeout,
         )
+    }
+
+    fn refresh_employees(&mut self) {
+        if let Some(db) = &self.database {
+            if let Ok(conn) = db.get_connection() {
+                // If search query is active
+                let result = if self.search_query.is_empty() {
+                    EmployeeRepository::find_all(&conn)
+                } else {
+                    EmployeeRepository::search(&conn, &self.search_query)
+                };
+
+                if let Ok(employees) = result {
+                    // We need to preserve current attendance if possible? 
+                    // Or re-apply schedule?
+                    // If we just reloaded, we lose the "Generate" state if we haven't saved it.
+                    // But "Generate" updates `current_schedule`. 
+                    // So we should re-map `current_schedule` to the new list.
+                    
+                    let mut ui_employees: Vec<UIEmployee> = employees.into_iter().map(core_to_ui_employee).collect();
+                    
+                    if let Some(schedule) = &self.current_schedule {
+                        apply_schedule_to_ui(&mut ui_employees, schedule);
+                    }
+
+                    self.attendance_table.employees = ui_employees;
+                }
+            }
+        }
+    }
+
+    fn load_schedule_for_date(&mut self) {
+        // Reset schedule first
+        self.current_schedule = None;
+
+        if let Some(db) = &self.database {
+            if let Ok(conn) = db.get_connection() {
+                 if let Ok(Some(schedule)) = ScheduleRepository::find_by_year_month(
+                    &conn, 
+                    self.current_date.year(), 
+                    self.current_date.month()
+                ) {
+                    self.current_schedule = Some(schedule);
+                }
+            }
+        }
+        
+        // Refresh employees to apply schedule (or clear it if None)
+        self.refresh_employees();
     }
 
     fn calculate_report(&self) -> ReportData {
@@ -113,6 +193,7 @@ impl RostrApp {
                     attendance_table::AttendanceStatus::Remote => {
                         daily_remote[day] += 1;
                     }
+                    attendance_table::AttendanceStatus::NA => {}
                 }
             }
         }
@@ -198,6 +279,63 @@ impl RostrApp {
                         self.modal = Modal::GeneralReport(data);
                     }
                 }
+                ActionBarMessage::Generate => {
+                    // Logic:
+                    // 1. Fetch all employees from DB (Core types)
+                    // 2. Fetch past schedules (TODO: Implement in Core)
+                    // 3. Run Engine
+                    // 4. Update UI
+                    
+                    if self.attendance_table.employees.is_empty() {
+                         return self.show_toast("No Employees".to_string(), "Please add employees before generating a schedule.".to_string(), Status::Error);
+                    }
+
+                    if let Some(db) = &self.database {
+                        if let Ok(conn) = db.get_connection() {
+                            if let Ok(core_employees) = EmployeeRepository::find_all(&conn) {
+                                let engine = Engine::new();
+                                // TODO: Pass past schedules
+                                let past_schedules = std::collections::HashMap::new(); 
+                                
+                                let schedule = engine.generate_schedule(
+                                    &core_employees,
+                                    &past_schedules,
+                                    self.current_date.year(),
+                                    self.current_date.month(),
+                                );
+                                
+                                self.current_schedule = Some(schedule.clone());
+                                
+                                // Update UI
+                                apply_schedule_to_ui(&mut self.attendance_table.employees, &schedule);
+                                
+                                return self.show_toast("Schedule Generated".to_string(), "New schedule has been generated (not saved yet).".to_string(), Status::Success);
+                            }
+                        }
+                    }
+                }
+                ActionBarMessage::Save => {
+                    if let Some(schedule) = &self.current_schedule {
+                        if let Some(db) = &self.database {
+                            if let Ok(conn) = db.get_connection() {
+                                if let Ok(Some(existing_schedule)) = ScheduleRepository::find_by_year_month(&conn, schedule.year, schedule.month) {
+                                     // Check if the content is exactly the same
+                                     if schedule.is_same_content(&existing_schedule) {
+                                         return self.show_toast("Schedule Exists".to_string(), "This exact schedule is already saved.".to_string(), Status::Info);
+                                     }
+                                     // If different, we proceed to save (overwrite)
+                                }
+
+                                match ScheduleRepository::save(&conn, schedule) {
+                                    Ok(_) => return self.show_toast("Schedule Saved".to_string(), "Schedule successfully saved to database.".to_string(), Status::Success),
+                                    Err(e) => return self.show_toast("Save Failed".to_string(), e.to_string(), Status::Error),
+                                }
+                            }
+                        }
+                    } else {
+                         return self.show_toast("No Schedule".to_string(), "Please generate a schedule first.".to_string(), Status::Info);
+                    }
+                }
                 ActionBarMessage::Import => {
                     return Task::perform(async {
                         let _ = rfd::AsyncFileDialog::new().pick_file().await;
@@ -214,7 +352,10 @@ impl RostrApp {
                 return self.attendance_table.update(msg).map(Message::AttendanceTable);
             }
             Message::TopBar(top_bar_msg) => match top_bar_msg {
-                TopBarMessage::SearchChanged(query) => self.search_query = query,
+                TopBarMessage::SearchChanged(query) => {
+                    self.search_query = query;
+                    self.refresh_employees();
+                },
                 TopBarMessage::ToggleTheme => self.is_dark = !self.is_dark,
                 TopBarMessage::PreviousDate => {
                     self.current_date = if self.current_date.month() == 1 {
@@ -227,6 +368,7 @@ impl RostrApp {
                         )
                         .unwrap()
                     };
+                    self.load_schedule_for_date();
                 }
                 TopBarMessage::NextDate => {
                     self.current_date = if self.current_date.month() == 12 {
@@ -239,6 +381,7 @@ impl RostrApp {
                         )
                         .unwrap()
                     };
+                    self.load_schedule_for_date();
                 }
                 _ => {}
             },
@@ -250,75 +393,155 @@ impl RostrApp {
                     self.modal = Modal::None;
                 }
                 ModalMessage::DownloadPdf => {
-                    // Placeholder for download PDF logic
                     return self.show_toast("Download PDF".to_string(), "PDF Download started...".to_string(), Status::Success);
                 }
                 ModalMessage::SubmitAdd => {
-                    let new_employee = if let Modal::AddEmployee(form) = &self.modal {
-                        Some(Employee {
-                            name: if form.name.is_empty() { "New Employee".to_string() } else { form.name.clone() },
-                            role: form.role.clone().unwrap_or("Role".to_string()),
-                            sex: form.sex.clone().unwrap_or("Male".to_string()),
-                            days_per_week: form.days_per_week.unwrap_or(0),
-                            mentee: form.mentee.clone().filter(|s| s != "None"),
-                        mentor: form.mentor.clone().filter(|s| s != "None"),
-                        attendance: form.attendance,
-                        past_attendance: vec![],
-                    })
-                } else {
-                    None
-                };
-
-                    if let Some(employee) = new_employee {
-                        let name = employee.name.clone();
-                        self.attendance_table.employees.push(employee);
-                        self.modal = Modal::None;
-                        return self.show_toast("Employee Added".to_string(), format!("{} has been successfully added.", name), Status::Success);
-                    }
-                }
-                ModalMessage::SubmitEdit(idx) => {
-                    let update_data = if let Modal::EditEmployee(_, form) = &self.modal {
-                         Some((
-                            form.name.clone(),
-                            form.role.clone().unwrap_or_default(),
-                            form.sex.clone().unwrap_or_default(),
-                            form.days_per_week.unwrap_or(0),
-                            form.mentee.clone().filter(|s| s != "None"),
-                            form.mentor.clone().filter(|s| s != "None"),
-                            form.attendance,
-                        ))
+                    let form_data = if let Modal::AddEmployee(form) = &self.modal {
+                        Some(form.clone())
                     } else {
                         None
                     };
 
-                    if let Some((name, role, sex, days, mentee, mentor, attendance)) = update_data {
-                         if let Some(employee) = self.attendance_table.employees.get_mut(idx) {
-                            employee.name = name.clone();
-                            employee.role = role;
-                            employee.sex = sex;
-                            employee.days_per_week = days;
-                            employee.mentee = mentee;
-                            employee.mentor = mentor;
-                            employee.attendance = attendance;
-                            
-                            self.modal = Modal::None;
-                            return self.show_toast("Employee Updated".to_string(), format!("{}'s details have been updated.", name), Status::Success);
+                    if let Some(form) = form_data {
+                        if let Some(db) = &self.database {
+                            if let Ok(conn) = db.get_connection() {
+                                // Convert form to CoreEmployee
+                                let sex = Sex::from_str(&form.sex.unwrap_or("Male".to_string())).unwrap_or(Sex::Male);
+                                let role = Role::from_str(&form.role.unwrap_or("Full-stack Engineer".to_string())).unwrap_or(Role::FullStackEngineer);
+                                let mut fixed_days = Vec::new();
+                                for (i, status) in form.attendance.iter().enumerate() {
+                                    if *status == AttendanceStatus::Office {
+                                        // Fixed days
+                                        match i {
+                                            0 => fixed_days.push(Weekday::Monday),
+                                            1 => fixed_days.push(Weekday::Tuesday),
+                                            2 => fixed_days.push(Weekday::Wednesday),
+                                            3 => fixed_days.push(Weekday::Thursday),
+                                            4 => fixed_days.push(Weekday::Friday),
+                                            _ => {}
+                                        }
+                                    }
+                                }
+
+                                let mut core_emp = CoreEmployee::new(
+                                    form.name.clone(),
+                                    sex,
+                                    role,
+                                    form.days_per_week.unwrap_or(0) as i32,
+                                    fixed_days,
+                                    form.mentor.as_deref() == Some("Yes"), // UI logic for mentor/mentee is "None" or Name. 
+                                    // Wait, UI form has "Mentee" and "Mentor" dropdowns which select NAMES. 
+                                    // But Core has `is_mentor` (bool) and `is_mentee` (bool) and `mentor_id` (Option<int>).
+                                    // The UI currently just selects strings. 
+                                    // Simplified assumption: If Mentee field has a value != "None", is_mentee = true.
+                                    // If Mentor field has a value != "None", is_mentor = true? 
+                                    // Actually, usually "Mentor" field means "Who is my mentor?". So if I select someone, I AM a Mentee.
+                                    // "Mentee" field? If I select someone, does it mean I AM a Mentor to them?
+                                    // Let's assume:
+                                    // - "Mentee" dropdown: "None" or Name. If Name selected -> I am Mentor to [Name]. (Logic might be complex here without IDs).
+                                    // - "Mentor" dropdown: "None" or Name. If Name selected -> I am Mentee of [Name].
+                                    
+                                    // For now, let's just save simple flags if possible, or ignore relationship linking by ID until better UI.
+                                    // We'll set defaults for now to avoid errors.
+                                    false,
+                                    None
+                                );
+                                
+                                // Try to resolve mentor ID if possible (needs lookup). skipping for now.
+
+                                match EmployeeRepository::create(&conn, &mut core_emp) {
+                                    Ok(_) => {
+                                        // Do not invalidate current schedule, just refresh list
+                                        // self.current_schedule = None;
+
+                                        self.refresh_employees();
+                                        self.modal = Modal::None;
+                                        return self.show_toast("Employee Added".to_string(), format!("{} has been successfully added.", form.name), Status::Success);
+                                    }
+                                    Err(e) => {
+                                        return self.show_toast("Error".to_string(), e.to_string(), Status::Error);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                ModalMessage::SubmitEdit(idx) => {
+                    let form_data = if let Modal::EditEmployee(_, form) = &self.modal {
+                        Some(form.clone())
+                    } else {
+                        None
+                    };
+
+                    if let Some(form) = form_data {
+                         if let Some(employee) = self.attendance_table.employees.get(idx) {
+                            if let Some(db) = &self.database {
+                                if let Ok(conn) = db.get_connection() {
+                                    // Fetch original to keep ID
+                                    if let Ok(Some(mut core_emp)) = EmployeeRepository::find_by_id(&conn, employee.id) {
+                                        core_emp.name = form.name.clone();
+                                        core_emp.sex = Sex::from_str(&form.sex.unwrap_or_default()).unwrap_or(Sex::Male);
+                                        core_emp.role = Role::from_str(&form.role.unwrap_or_default()).unwrap_or(Role::FullStackEngineer);
+                                        core_emp.required_days = form.days_per_week.unwrap_or(0) as i32;
+                                        
+                                        let mut fixed_days = Vec::new();
+                                        for (i, status) in form.attendance.iter().enumerate() {
+                                            if *status == AttendanceStatus::Office {
+                                                match i {
+                                                    0 => fixed_days.push(Weekday::Monday),
+                                                    1 => fixed_days.push(Weekday::Tuesday),
+                                                    2 => fixed_days.push(Weekday::Wednesday),
+                                                    3 => fixed_days.push(Weekday::Thursday),
+                                                    4 => fixed_days.push(Weekday::Friday),
+                                                    _ => {}
+                                                }
+                                            }
+                                        }
+                                        core_emp.fixed_days = fixed_days;
+
+                                        match EmployeeRepository::update(&conn, &core_emp) {
+                                            Ok(_) => {
+                                                // Do not invalidate current schedule
+                                                // self.current_schedule = None;
+
+                                                self.refresh_employees();
+                                                self.modal = Modal::None;
+                                                return self.show_toast("Employee Updated".to_string(), format!("{}'s details have been updated.", core_emp.name), Status::Success);
+                                            }
+                                            Err(e) => {
+                                                return self.show_toast("Error".to_string(), e.to_string(), Status::Error);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                     self.modal = Modal::None;
                 }
                 ModalMessage::ConfirmDelete(idx) => {
-                    let mut deleted_name = String::new();
-                    if idx < self.attendance_table.employees.len() {
-                        deleted_name = self.attendance_table.employees[idx].name.clone();
-                        self.attendance_table.employees.remove(idx);
-                        // Adjust selection if needed or clear it
-                        self.attendance_table.selected_employee = None;
+                    if let Some(employee) = self.attendance_table.employees.get(idx) {
+                        let name = employee.name.clone(); // Clone name before potential deletion logic
+                        if let Some(db) = &self.database {
+                            if let Ok(conn) = db.get_connection() {
+                                match EmployeeRepository::delete(&conn, employee.id) {
+                                    Ok(_) => {
+                                        // Invalidate current schedule as employee list changed
+                                        self.current_schedule = None;
+                                        
+                                        self.refresh_employees();
+                                        self.attendance_table.selected_employee = None;
+                                        self.modal = Modal::None;
+                                        return self.show_toast("Employee Deleted".to_string(), format!("{} has been removed.", name), Status::Success);
+                                    }
+                                    Err(e) => {
+                                        return self.show_toast("Error".to_string(), e.to_string(), Status::Error);
+                                    }
+                                }
+                            }
+                        }
                     }
                     self.modal = Modal::None;
-                    if !deleted_name.is_empty() {
-                        return self.show_toast("Employee Deleted".to_string(), format!("{} has been removed.", deleted_name), Status::Success);
-                    }
                 }
                 // Handle form updates
                 ModalMessage::NameChanged(name) => {
@@ -358,6 +581,7 @@ impl RostrApp {
                              form.attendance[day_idx] = match form.attendance[day_idx] {
                                  attendance_table::AttendanceStatus::Office => attendance_table::AttendanceStatus::Remote,
                                  attendance_table::AttendanceStatus::Remote => attendance_table::AttendanceStatus::Office,
+                                 attendance_table::AttendanceStatus::NA => attendance_table::AttendanceStatus::Office, // Allow setting fixed days even if NA
                              };
                         }
                     }
@@ -428,5 +652,44 @@ impl RostrApp {
             modal,
             toasts
         ].into()
+    }
+}
+
+// Helpers
+
+fn core_to_ui_employee(e: CoreEmployee) -> UIEmployee {
+    UIEmployee {
+        id: e.id,
+        name: e.name,
+        role: e.role.to_string(),
+        sex: e.sex.to_string(),
+        days_per_week: e.required_days as u8,
+        mentee: None, // TODO: Map relationships
+        mentor: None, // TODO: Map relationships
+        attendance: [AttendanceStatus::NA; 5], // Default to NA
+        past_attendance: vec![],
+    }
+}
+
+fn apply_schedule_to_ui(ui_employees: &mut [UIEmployee], schedule: &MonthlySchedule) {
+    let weekdays = [Weekday::Monday, Weekday::Tuesday, Weekday::Wednesday, Weekday::Thursday, Weekday::Friday];
+    
+    for emp in ui_employees.iter_mut() {
+        let is_included = schedule.included_employees.contains(&emp.id);
+
+        for (i, day) in weekdays.iter().enumerate() {
+            let employees_on_day = schedule.get_employees_for_day(*day);
+            let is_scheduled = employees_on_day.iter().any(|e| e.id == emp.id);
+            
+            if is_scheduled {
+                emp.attendance[i] = AttendanceStatus::Office;
+            } else if is_included {
+                // If they are included in the schedule but not in Office, they are Remote
+                emp.attendance[i] = AttendanceStatus::Remote;
+            } else {
+                // If not included (new employee or legacy schedule without record), they are N/A
+                emp.attendance[i] = AttendanceStatus::NA;
+            }
+        }
     }
 }
