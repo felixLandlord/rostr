@@ -96,7 +96,7 @@ impl AttendanceTable {
         }
     }
 
-    pub fn view(&self, is_dark: bool) -> Element<'_, Message> {
+    pub fn view(&self, is_dark: bool, is_read_only: bool) -> Element<'_, Message> {
         let days = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"];
 
         // Header
@@ -332,8 +332,8 @@ impl AttendanceTable {
                                 }
                             });
                             
-                            let btn = if *status == AttendanceStatus::NA {
-                                btn // No on_press for NA
+                            let btn = if *status == AttendanceStatus::NA || is_read_only {
+                                btn // No on_press for NA or when read-only
                             } else {
                                 btn.on_press(Message::ToggleStatus(emp_idx, day_idx))
                             };

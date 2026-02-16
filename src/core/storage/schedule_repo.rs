@@ -111,4 +111,13 @@ impl ScheduleRepository {
         }
         Ok(schedules)
     }
+
+    pub fn has_future_schedule(conn: &Connection, current_year: i32, current_month: u32) -> Result<bool> {
+        let mut stmt = conn.prepare(
+            "SELECT COUNT(*) FROM schedules WHERE year > ?1 OR (year = ?1 AND month > ?2)"
+        )?;
+        
+        let count: i32 = stmt.query_row(params![current_year, current_month], |row| row.get(0))?;
+        Ok(count > 0)
+    }
 }

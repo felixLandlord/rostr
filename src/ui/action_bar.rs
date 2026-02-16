@@ -22,7 +22,7 @@ pub enum Message {
 }
 
 impl ActionBar {
-    pub fn view<'a>(is_dark: bool, has_selection: bool) -> Element<'a, Message> {
+    pub fn view<'a>(is_dark: bool, has_selection: bool, is_read_only: bool) -> Element<'a, Message> {
         let border_color = if is_dark { BORDER_DARK } else { BORDER_LIGHT };
         let _text_color = if is_dark { TEXT_DARK } else { TEXT_LIGHT };
         let muted_color = if is_dark {
@@ -32,79 +32,117 @@ impl ActionBar {
         };
 
         // Generate Button (Primary)
-        let generate_btn = button(
-            row![
-                icon_sparkles().size(18).color(Color::WHITE),
-                text("Generate").size(14).font(iced::font::Font {
-                    weight: iced::font::Weight::Bold,
-                    ..Default::default()
-                })
-            ]
-            .spacing(8)
-            .align_y(Alignment::Center),
-        )
-        .on_press(Message::Generate)
-        .padding([8, 16])
-        .style(move |_, status| {
-            let bg = if status == button::Status::Hovered {
-                PRIMARY_HOVER
-            } else {
-                PRIMARY
-            };
-            button::Style {
-                background: Some(bg.into()),
-                border: Border {
-                    radius: 8.0.into(),
-                    ..Border::default()
-                },
-                text_color: Color::WHITE,
-                ..button::Style::default()
-            }
-        });
+        let generate_btn = if is_read_only {
+            button(
+                row![
+                    icon_sparkles().size(18).color(muted_color),
+                    text("Generate").size(14).font(iced::font::Font {
+                        weight: iced::font::Weight::Bold,
+                        ..Default::default()
+                    })
+                    .style(move |_| text::Style { color: Some(muted_color) })
+                ]
+                .spacing(8)
+                .align_y(Alignment::Center),
+            )
+            .padding([8, 16])
+            .style(move |_, _| {
+                button::Style {
+                    background: Some(if is_dark { SURFACE_DARK } else { SURFACE_LIGHT }.into()),
+                    border: Border {
+                        radius: 8.0.into(),
+                        color: if is_dark { BORDER_DARK } else { BORDER_LIGHT },
+                        width: 1.0,
+                    },
+                    ..button::Style::default()
+                }
+            })
+        } else {
+            button(
+                row![
+                    icon_sparkles().size(18).color(Color::WHITE),
+                    text("Generate").size(14).font(iced::font::Font {
+                        weight: iced::font::Weight::Bold,
+                        ..Default::default()
+                    })
+                ]
+                .spacing(8)
+                .align_y(Alignment::Center),
+            )
+            .on_press(Message::Generate)
+            .padding([8, 16])
+            .style(move |_, status| {
+                let bg = if status == button::Status::Hovered {
+                    PRIMARY_HOVER
+                } else {
+                    PRIMARY
+                };
+                button::Style {
+                    background: Some(bg.into()),
+                    border: Border {
+                        radius: 8.0.into(),
+                        ..Border::default()
+                    },
+                    text_color: Color::WHITE,
+                    ..button::Style::default()
+                }
+            })
+        };
 
         // Save Button (Outline)
-        let save_btn = button(
-            row![
-                icon_save().size(18).color(muted_color),
-                text("Save").size(14).font(iced::font::Font {
-                    weight: iced::font::Weight::Semibold,
-                    ..Default::default()
-                })
-            ]
-            .spacing(8)
-            .align_y(Alignment::Center),
-        )
-        .on_press(Message::Save)
-        .padding([8, 16])
-        .style(move |_, status| {
-            let (bg, border_col) = if status == button::Status::Hovered {
-                (
-                    if is_dark { GRAY_800 } else { Color::WHITE },
-                    PRIMARY,
-                )
-            } else {
-                (
-                    if is_dark { GRAY_800 } else { Color::WHITE },
-                    if is_dark { GRAY_800 } else { BORDER_LIGHT },
-                )
-            };
-            button::Style {
-                background: Some(bg.into()),
-                border: Border {
-                    radius: 8.0.into(),
-                    color: border_col,
-                    width: 1.0,
-                },
-                text_color: if is_dark { TEXT_DARK } else { TEXT_LIGHT },
-                ..button::Style::default()
-            }
-        });
+        let save_btn: Element<'a, Message> = if is_read_only {
+             ghost_button(
+                icon_save(),
+                "Save",
+                None, // Disabled
+                is_dark,
+                muted_color,
+                false,
+            ).into()
+        } else {
+            button(
+                row![
+                    icon_save().size(18).color(muted_color),
+                    text("Save").size(14).font(iced::font::Font {
+                        weight: iced::font::Weight::Semibold,
+                        ..Default::default()
+                    })
+                ]
+                .spacing(8)
+                .align_y(Alignment::Center),
+            )
+            .on_press(Message::Save)
+            .padding([8, 16])
+            .style(move |_, status| {
+                let (bg, border_col) = if status == button::Status::Hovered {
+                    (
+                        if is_dark { GRAY_800 } else { Color::WHITE },
+                        PRIMARY,
+                    )
+                } else {
+                    (
+                        if is_dark { GRAY_800 } else { Color::WHITE },
+                        if is_dark { GRAY_800 } else { BORDER_LIGHT },
+                    )
+                };
+                button::Style {
+                    background: Some(bg.into()),
+                    border: Border {
+                        radius: 8.0.into(),
+                        color: border_col,
+                        width: 1.0,
+                    },
+                    text_color: if is_dark { TEXT_DARK } else { TEXT_LIGHT },
+                    ..button::Style::default()
+                }
+            }).into()
+        };
 
         // Undo Button (Ghost)
         let undo_btn = ghost_button(
             icon_undo_2(),
             "Undo Changes",
-            Some(Message::Undo),
+            if is_read_only { None } else { Some(Message::Undo) },
             is_dark,
             muted_color,
             false,

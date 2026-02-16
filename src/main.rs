@@ -48,6 +48,7 @@ struct RostrApp {
     toast_counter: u64,
     database: Option<Database>, // Option because it might fail to init
     current_schedule: Option<MonthlySchedule>,
+    is_locked: bool,
 }
 
 impl RostrApp {
@@ -65,6 +66,7 @@ impl RostrApp {
             toast_counter: 0,
             database: None,
             current_schedule: None,
+            is_locked: false,
         };
 
         let mut commands = Vec::new();
@@ -136,6 +138,7 @@ impl RostrApp {
     fn load_schedule_for_date(&mut self) {
         // Reset schedule first
         self.current_schedule = None;
+        self.is_locked = false;
 
         if let Some(db) = &self.database {
             if let Ok(conn) = db.get_connection() {
@@ -145,6 +148,15 @@ impl RostrApp {
                     self.current_date.month()
                 ) {
                     self.current_schedule = Some(schedule);
+                }
+
+                // Check for future schedules to lock past/current months
+                if let Ok(has_future) = ScheduleRepository::has_future_schedule(
+                    &conn,
+                    self.current_date.year(),
+                    self.current_date.month()
+                ) {
+                    self.is_locked = has_future;
                 }
             }
         }
@@ -637,8 +649,8 @@ impl RostrApp {
         )
         .map(Message::TopBar);
 
-        let action_bar = ActionBar::view(self.is_dark, self.attendance_table.selected_employee.is_some()).map(Message::ActionBar);
-        let attendance_table = self.attendance_table.view(self.is_dark).map(Message::AttendanceTable);
+        let action_bar = ActionBar::view(self.is_dark, self.attendance_table.selected_employee.is_some(), self.is_locked).map(Message::ActionBar);
+        let attendance_table = self.attendance_table.view(self.is_dark, self.is_locked).map(Message::AttendanceTable);
 
         let content = container(
             column![
