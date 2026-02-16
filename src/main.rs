@@ -36,6 +36,12 @@ pub fn main() -> iced::Result {
         .theme(RostrApp::theme)
         .font(LUCIDE_FONT_BYTES)
         .subscription(RostrApp::subscription)
+        .window(iced::window::Settings {
+            // min_size: Some(iced::Size::new(1024.0, 1024.0)),
+            maximized: true,
+            resizable: false,
+            ..Default::default()
+        })
         .run()
 }
 
