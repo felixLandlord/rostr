@@ -771,7 +771,9 @@ impl RostrApp {
                 // Handle form updates
                 ModalMessage::NameChanged(name) => {
                     if let Modal::AddEmployee(form) | Modal::EditEmployee(_, form) = &mut self.modal {
-                        form.name = name;
+                        if name.chars().count() <= 22 {
+                            form.name = name;
+                        }
                     }
                 }
                 ModalMessage::RoleSelected(role) => {
