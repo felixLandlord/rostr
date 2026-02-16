@@ -36,19 +36,71 @@ impl Engine {
         // Process fixed schedules
         let (mut flexible_emps, fixed_emps) = self.process_fixed_schedules(employees, &mut schedule, &mut day_counts);
 
-        // Build mentor schedules map
-        let mentor_schedules = self.build_mentor_schedules(&fixed_emps, &schedule);
-
         // Group flexible employees by required days
-        let grouped = self.group_by_required_days(&mut flexible_emps);
+        let mut grouped = self.group_by_required_days(&mut flexible_emps);
 
-        // Process flexible employees
+        // 1. Process Mentors first
+        // We need to extract mentors from grouped map to process them first
+        let mut mentors_grouped = HashMap::new();
+        for (days, emps) in grouped.iter_mut() {
+            let (mentors, others): (Vec<Employee>, Vec<Employee>) = emps.drain(..).partition(|e| e.is_mentor);
+            if !mentors.is_empty() {
+                mentors_grouped.insert(*days, mentors);
+            }
+            *emps = others;
+        }
+
+        let mentor_schedules = HashMap::new(); // Initial empty map for mentors (they don't depend on anyone usually)
+        
+        // Process Mentors
+        self.process_flexible_employees(
+            mentors_grouped,
+            &mut schedule,
+            &mut day_counts,
+            past_schedules,
+            &mentor_schedules,
+            employees,
+        );
+
+        // Re-build mentor schedules map (now including flexible days we just assigned)
+        let mut full_mentor_schedules = self.build_mentor_schedules(&fixed_emps, &schedule);
+        // Also add flexible mentors we just processed
+        // We can just scan the schedule for all mentors
+        for day in Weekday::all() {
+            let emps = schedule.get_employees_for_day(day);
+            for emp in emps {
+                if emp.is_mentor {
+                    full_mentor_schedules.entry(emp.id).or_default().push(day);
+                }
+            }
+        }
+        
+        // 2. Process Mentees (who depend on mentors)
+        let mut mentees_grouped = HashMap::new();
+        for (days, emps) in grouped.iter_mut() {
+            let (mentees, others): (Vec<Employee>, Vec<Employee>) = emps.drain(..).partition(|e| e.is_mentee);
+            if !mentees.is_empty() {
+                mentees_grouped.insert(*days, mentees);
+            }
+            *emps = others;
+        }
+
+        self.process_flexible_employees(
+            mentees_grouped,
+            &mut schedule,
+            &mut day_counts,
+            past_schedules,
+            &full_mentor_schedules,
+            employees,
+        );
+
+        // 3. Process remaining employees
         self.process_flexible_employees(
             grouped,
             &mut schedule,
             &mut day_counts,
             past_schedules,
-            &mentor_schedules,
+            &full_mentor_schedules, // Doesn't matter for them
             employees,
         );
 
@@ -129,15 +181,13 @@ impl Engine {
             if let Some(employees) = grouped.get(&num_days) {
                 if let Some(combinations) = self.generator.get_combinations(num_days) {
                     for emp in employees {
-                        let mut required_days = Vec::new();
+                        let mut mentor_days = Vec::new();
                         if emp.is_mentee {
                             if let Some(mentor_id) = emp.mentor_id {
-                                if let Some(mentor) = all_employees.iter().find(|e| e.id == mentor_id) {
-                                    if mentor.required_days > 0 {
-                                        if let Some(mentor_days) = mentor_schedules.get(&mentor_id) {
-                                            required_days = mentor_days.clone();
-                                        }
-                                    }
+                                // Find mentor in all_employees to check their ID
+                                // Wait, we have mentor_schedules which is map<ID, Days>.
+                                if let Some(days) = mentor_schedules.get(&mentor_id) {
+                                    mentor_days = days.clone();
                                 }
                             }
                         }
@@ -158,7 +208,7 @@ impl Engine {
                             day_counts,
                             emp,
                             past_schedules,
-                            &required_days,
+                            &mentor_days,
                         );
 
                         for &day in &best_combo.days {
@@ -177,20 +227,12 @@ impl Engine {
         day_counts: &HashMap<Weekday, usize>,
         employee: &Employee,
         past_schedules: &PastSchedules,
-        required_days: &[Weekday],
+        mentor_days: &[Weekday],
     ) -> DayCombination {
-        let mut valid_combos: Vec<DayCombination> = if !required_days.is_empty() {
-            let filtered = self.filter_combinations_by_required_days(combinations, required_days);
-            if filtered.is_empty() {
-                combinations.to_vec()
-            } else {
-                filtered
-            }
-        } else {
-            combinations.to_vec()
-        };
-
-        let shuffled = shuffle_combinations(&valid_combos);
+        // Filter out combinations that don't match required days length if strict? 
+        // No, `combinations` already have correct length (num_days).
+        
+        let shuffled = shuffle_combinations(combinations);
         let mut best_combo = shuffled[0].clone();
         let mut min_score = f64::MAX;
 
@@ -208,8 +250,19 @@ impl Engine {
             for &day in &combo.days {
                 repetition_score += past_day_freq.get(&day).cloned().unwrap_or(0.0);
             }
+            
+            // Mentorship overlap score
+            // We want to MINIMIZE score.
+            // If we match a mentor day, we subtract from score (reward).
+            let mut mentorship_score = 0.0;
+            if !mentor_days.is_empty() {
+                let matches = combo.days.iter().filter(|d| mentor_days.contains(d)).count();
+                // Reward for each match. 
+                // Weight should be significant to prioritize overlap.
+                mentorship_score = -(matches as f64 * 10.0); 
+            }
 
-            let total_score = variance + (3.0 * repetition_score);
+            let total_score = variance + (3.0 * repetition_score) + mentorship_score;
 
             if total_score < min_score {
                 min_score = total_score;

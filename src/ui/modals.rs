@@ -41,6 +41,7 @@ pub struct EmployeeForm {
     pub mentee: Option<String>,
     pub mentor: Option<String>,
     pub attendance: [AttendanceStatus; 5],
+    pub available_employees: Vec<String>,
 }
 
 impl EmployeeForm {
@@ -59,10 +60,10 @@ impl Default for EmployeeForm {
             role: None,
             sex: None,
             days_per_week: None,
-            mentee: Some("None".to_string()),
-            mentor: Some("None".to_string()),
+            mentee: None,
+            mentor: None,
             attendance: [AttendanceStatus::NA; 5],
-            // attendance: [AttendanceStatus::Remote; 5], // Old default
+            available_employees: Vec::new(),
         }
     }
 }
@@ -89,6 +90,7 @@ impl From<&Employee> for EmployeeForm {
             mentee: e.mentee.clone(),
             mentor: e.mentor.clone(),
             attendance,
+            available_employees: Vec::new(),
         }
     }
 }
@@ -764,13 +766,13 @@ fn form_view<'a>(
             // Row 3
             row![
                 input_group("Mentee", 
-                     pick_list(MENTEES, form.mentee.as_deref(), |m| Message::MenteeSelected(m.to_string()))
+                     pick_list(form.available_employees.as_slice(), form.mentee.clone(), |m| Message::MenteeSelected(m.to_string()))
                         .width(Length::Fill)
                         .padding(10)
                         .style(move |t, s| theme::pick_list_style(t, s, is_dark))
                 ),
                 input_group("Mentor", 
-                     pick_list(MENTORS, form.mentor.as_deref(), |m| Message::MentorSelected(m.to_string()))
+                     pick_list(form.available_employees.as_slice(), form.mentor.clone(), |m| Message::MentorSelected(m.to_string()))
                         .width(Length::Fill)
                         .padding(10)
                         .style(move |t, s| theme::pick_list_style(t, s, is_dark))

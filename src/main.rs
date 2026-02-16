@@ -123,7 +123,43 @@ impl RostrApp {
                     // But "Generate" updates `current_schedule`. 
                     // So we should re-map `current_schedule` to the new list.
                     
-                    let mut ui_employees: Vec<UIEmployee> = employees.into_iter().map(core_to_ui_employee).collect();
+                    let mut ui_employees = Vec::new();
+                    
+                    // Map ID -> Name
+                    let id_to_name: std::collections::HashMap<i32, String> = employees.iter().map(|e| (e.id, e.name.clone())).collect();
+                    
+                    // Map MentorID -> MenteeName (Who is mentoring whom?)
+                    let mut mentor_to_mentee: std::collections::HashMap<i32, String> = std::collections::HashMap::new();
+                    for emp in &employees {
+                        if let Some(mid) = emp.mentor_id {
+                            // If emp has a mentor, emp is the mentee.
+                            mentor_to_mentee.insert(mid, emp.name.clone());
+                        }
+                    }
+
+                    for emp in employees {
+                        let mentor_name = emp.mentor_id.and_then(|mid| id_to_name.get(&mid).cloned());
+                        
+                        // If I am a mentor, look up my ID in mentor_to_mentee map to find my mentee.
+                        let mentee_name = if emp.is_mentor {
+                            mentor_to_mentee.get(&emp.id).cloned()
+                        } else {
+                            None
+                        };
+
+                        ui_employees.push(UIEmployee {
+                            id: emp.id,
+                            name: emp.name,
+                            role: emp.role.to_string(),
+                            sex: emp.sex.to_string(),
+                            days_per_week: emp.required_days as u8,
+                            fixed_days: emp.fixed_days,
+                            mentee: mentee_name,
+                            mentor: mentor_name,
+                            attendance: [AttendanceStatus::NA; 5],
+                            past_attendance: vec![],
+                        });
+                    }
                     
                     if let Some(schedule) = &self.current_schedule {
                         apply_schedule_to_ui(&mut ui_employees, schedule);
@@ -261,12 +297,21 @@ impl RostrApp {
             }
             Message::ActionBar(msg) => match msg {
                 ActionBarMessage::AddEmployee => {
-                    self.modal = Modal::AddEmployee(EmployeeForm::default());
+                    let mut form = EmployeeForm::default();
+                    form.available_employees = self.attendance_table.employees.iter().map(|e| e.name.clone()).collect();
+                    form.available_employees.insert(0, "None".to_string());
+                    self.modal = Modal::AddEmployee(form);
                 }
                 ActionBarMessage::EditEmployee => {
                     if let Some(idx) = self.attendance_table.selected_employee {
                         if let Some(employee) = self.attendance_table.employees.get(idx) {
-                             self.modal = Modal::EditEmployee(idx, EmployeeForm::from(employee));
+                             let mut form = EmployeeForm::from(employee);
+                             form.available_employees = self.attendance_table.employees.iter()
+                                .filter(|e| e.id != employee.id) // Exclude self
+                                .map(|e| e.name.clone())
+                                .collect();
+                             form.available_employees.insert(0, "None".to_string());
+                             self.modal = Modal::EditEmployee(idx, form);
                         }
                     }
                 }
@@ -526,28 +571,35 @@ impl RostrApp {
                                     }
                                 }
 
+                                // Resolve mentor ID from name
+                                let mut mentor_id = None;
+                                let mut is_mentee = false;
+                                if let Some(mentor_name) = &form.mentor {
+                                    if mentor_name != "None" {
+                                        if let Some(mentor) = self.attendance_table.employees.iter().find(|e| &e.name == mentor_name) {
+                                            mentor_id = Some(mentor.id);
+                                            is_mentee = true;
+                                        }
+                                    }
+                                }
+
+                                // Resolve is_mentor flag if user selected a mentee (implying they are a mentor)
+                                let mut is_mentor = false;
+                                if let Some(mentee_name) = &form.mentee {
+                                    if mentee_name != "None" {
+                                        is_mentor = true;
+                                    }
+                                }
+
                                 let mut core_emp = CoreEmployee::new(
                                     form.name.clone(),
                                     sex,
                                     role,
                                     form.days_per_week.unwrap_or(0) as i32,
                                     fixed_days,
-                                    form.mentor.as_deref() == Some("Yes"), // UI logic for mentor/mentee is "None" or Name. 
-                                    // Wait, UI form has "Mentee" and "Mentor" dropdowns which select NAMES. 
-                                    // But Core has `is_mentor` (bool) and `is_mentee` (bool) and `mentor_id` (Option<int>).
-                                    // The UI currently just selects strings. 
-                                    // Simplified assumption: If Mentee field has a value != "None", is_mentee = true.
-                                    // If Mentor field has a value != "None", is_mentor = true? 
-                                    // Actually, usually "Mentor" field means "Who is my mentor?". So if I select someone, I AM a Mentee.
-                                    // "Mentee" field? If I select someone, does it mean I AM a Mentor to them?
-                                    // Let's assume:
-                                    // - "Mentee" dropdown: "None" or Name. If Name selected -> I am Mentor to [Name]. (Logic might be complex here without IDs).
-                                    // - "Mentor" dropdown: "None" or Name. If Name selected -> I am Mentee of [Name].
-                                    
-                                    // For now, let's just save simple flags if possible, or ignore relationship linking by ID until better UI.
-                                    // We'll set defaults for now to avoid errors.
-                                    false,
-                                    None
+                                    is_mentor,
+                                    is_mentee,
+                                    mentor_id,
                                 );
                                 
                                 // Try to resolve mentor ID if possible (needs lookup). skipping for now.
@@ -606,6 +658,30 @@ impl RostrApp {
                                             }
                                         }
                                         core_emp.fixed_days = fixed_days;
+
+                                        // Resolve mentor ID from name
+                                        let mut mentor_id = None;
+                                        let mut is_mentee = false;
+                                        if let Some(mentor_name) = &form.mentor {
+                                            if mentor_name != "None" {
+                                                if let Some(mentor) = self.attendance_table.employees.iter().find(|e| &e.name == mentor_name) {
+                                                    mentor_id = Some(mentor.id);
+                                                    is_mentee = true;
+                                                }
+                                            }
+                                        }
+
+                                        // Resolve is_mentor flag if user selected a mentee (implying they are a mentor)
+                                        let mut is_mentor = false;
+                                        if let Some(mentee_name) = &form.mentee {
+                                            if mentee_name != "None" {
+                                                is_mentor = true;
+                                            }
+                                        }
+                                        
+                                        core_emp.mentor_id = mentor_id;
+                                        core_emp.is_mentee = is_mentee;
+                                        core_emp.is_mentor = is_mentor;
 
                                         match EmployeeRepository::update(&conn, &core_emp) {
                                             Ok(_) => {
