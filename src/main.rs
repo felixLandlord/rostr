@@ -694,6 +694,7 @@ fn core_to_ui_employee(e: CoreEmployee) -> UIEmployee {
         role: e.role.to_string(),
         sex: e.sex.to_string(),
         days_per_week: e.required_days as u8,
+        fixed_days: e.fixed_days,
         mentee: None, // TODO: Map relationships
         mentor: None, // TODO: Map relationships
         attendance: [AttendanceStatus::NA; 5], // Default to NA

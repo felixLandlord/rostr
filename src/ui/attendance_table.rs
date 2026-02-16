@@ -4,6 +4,7 @@ use iced::{Alignment, Color, Element, Length, Theme, Padding};
 use std::time::Duration;
 
 use crate::ui::theme;
+use crate::core::models::types::Weekday;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AttendanceStatus {
@@ -29,6 +30,7 @@ pub struct Employee {
     pub role: String,
     pub sex: String,
     pub days_per_week: u8,
+    pub fixed_days: Vec<Weekday>,
     pub mentee: Option<String>,
     pub mentor: Option<String>,
     pub attendance: [AttendanceStatus; 5], // Mon-Fri

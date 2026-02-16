@@ -3,6 +3,7 @@ use iced::{Alignment, Color, Element, Length, Padding, Theme};
 use lucide_icons::iced::{icon_calendar, icon_calendar_check_2, icon_calendar_plus_2, icon_chart_no_axes_column, icon_user_plus, icon_user_round_pen, icon_x};
 use crate::ui::theme;
 use crate::ui::attendance_table::{AttendanceStatus, Employee};
+use crate::core::models::types::Weekday;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
@@ -68,6 +69,18 @@ impl Default for EmployeeForm {
 
 impl From<&Employee> for EmployeeForm {
     fn from(e: &Employee) -> Self {
+        let mut attendance = [AttendanceStatus::NA; 5];
+        for day in &e.fixed_days {
+             let idx = match day {
+                 Weekday::Monday => 0,
+                 Weekday::Tuesday => 1,
+                 Weekday::Wednesday => 2,
+                 Weekday::Thursday => 3,
+                 Weekday::Friday => 4,
+             };
+             attendance[idx] = AttendanceStatus::Office;
+        }
+
         Self {
             name: e.name.clone(),
             role: Some(e.role.clone()),
@@ -75,7 +88,7 @@ impl From<&Employee> for EmployeeForm {
             days_per_week: Some(e.days_per_week),
             mentee: e.mentee.clone(),
             mentor: e.mentor.clone(),
-            attendance: e.attendance,
+            attendance,
         }
     }
 }
