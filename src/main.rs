@@ -137,24 +137,27 @@ impl RostrApp {
                         }
                     }
 
-                    for emp in employees {
+                    for emp in &employees {
                         let mentor_name = emp.mentor_id.and_then(|mid| id_to_name.get(&mid).cloned());
                         
-                        // If I am a mentor, look up my ID in mentor_to_mentee map to find my mentee.
-                        let mentee_name = if emp.is_mentor {
-                            mentor_to_mentee.get(&emp.id).cloned()
-                        } else {
-                            None
-                        };
+                        // Look up all employees who have this employee as their mentor
+                        let mut mentees = Vec::new();
+                        for (mentee_id, mentee_name) in &id_to_name {
+                            if let Some(mentor_id) = employees.iter().find(|e| e.id == *mentee_id).and_then(|e| e.mentor_id) {
+                                if mentor_id == emp.id {
+                                    mentees.push(mentee_name.clone());
+                                }
+                            }
+                        }
 
                         ui_employees.push(UIEmployee {
                             id: emp.id,
-                            name: emp.name,
+                            name: emp.name.clone(),
                             role: emp.role.to_string(),
                             sex: emp.sex.to_string(),
                             days_per_week: emp.required_days as u8,
-                            fixed_days: emp.fixed_days,
-                            mentee: mentee_name,
+                            fixed_days: emp.fixed_days.clone(),
+                            mentee: mentees,
                             mentor: mentor_name,
                             attendance: [AttendanceStatus::NA; 5],
                             past_attendance: vec![],
@@ -584,12 +587,7 @@ impl RostrApp {
                                 }
 
                                 // Resolve is_mentor flag if user selected a mentee (implying they are a mentor)
-                                let mut is_mentor = false;
-                                if let Some(mentee_name) = &form.mentee {
-                                    if mentee_name != "None" {
-                                        is_mentor = true;
-                                    }
-                                }
+                                let is_mentor = !form.mentee.is_empty();
 
                                 let mut core_emp = CoreEmployee::new(
                                     form.name.clone(),
@@ -606,6 +604,19 @@ impl RostrApp {
 
                                 match EmployeeRepository::create(&conn, &mut core_emp) {
                                     Ok(_) => {
+                                        // Update mentees logic for new employee
+                                        if !form.mentee.is_empty() {
+                                            if let Ok(all_employees) = EmployeeRepository::find_all(&conn) {
+                                                for mut emp in all_employees {
+                                                    if form.mentee.contains(&emp.name) {
+                                                        emp.mentor_id = Some(core_emp.id);
+                                                        emp.is_mentee = true;
+                                                        let _ = EmployeeRepository::update(&conn, &emp);
+                                                    }
+                                                }
+                                            }
+                                        }
+
                                         // Do not invalidate current schedule, just refresh list
                                         // self.current_schedule = None;
 
@@ -672,12 +683,7 @@ impl RostrApp {
                                         }
 
                                         // Resolve is_mentor flag if user selected a mentee (implying they are a mentor)
-                                        let mut is_mentor = false;
-                                        if let Some(mentee_name) = &form.mentee {
-                                            if mentee_name != "None" {
-                                                is_mentor = true;
-                                            }
-                                        }
+                                        let is_mentor = !form.mentee.is_empty();
                                         
                                         core_emp.mentor_id = mentor_id;
                                         core_emp.is_mentee = is_mentee;
@@ -685,8 +691,26 @@ impl RostrApp {
 
                                         match EmployeeRepository::update(&conn, &core_emp) {
                                             Ok(_) => {
-                                                // Do not invalidate current schedule
-                                                // self.current_schedule = None;
+                                                // Update mentees logic:
+                                                // 1. Find all employees who CURRENTLY have this employee as mentor
+                                                if let Ok(current_mentees) = EmployeeRepository::find_all(&conn) {
+                                                    for mut mentee_emp in current_mentees {
+                                                        let was_mentee = mentee_emp.mentor_id == Some(core_emp.id);
+                                                        let should_be_mentee = form.mentee.contains(&mentee_emp.name);
+                                                        
+                                                        if was_mentee && !should_be_mentee {
+                                                            // Remove mentorship
+                                                            mentee_emp.mentor_id = None;
+                                                            mentee_emp.is_mentee = false;
+                                                            let _ = EmployeeRepository::update(&conn, &mentee_emp);
+                                                        } else if !was_mentee && should_be_mentee {
+                                                            // Add mentorship
+                                                            mentee_emp.mentor_id = Some(core_emp.id);
+                                                            mentee_emp.is_mentee = true;
+                                                            let _ = EmployeeRepository::update(&conn, &mentee_emp);
+                                                        }
+                                                    }
+                                                }
 
                                                 self.refresh_employees();
                                                 self.modal = Modal::None;
@@ -750,7 +774,14 @@ impl RostrApp {
                 }
                 ModalMessage::MenteeSelected(mentee) => {
                     if let Modal::AddEmployee(form) | Modal::EditEmployee(_, form) = &mut self.modal {
-                        form.mentee = Some(mentee);
+                        if !form.mentee.contains(&mentee) && mentee != "None" {
+                            form.mentee.push(mentee);
+                        }
+                    }
+                }
+                ModalMessage::MenteeRemoved(mentee) => {
+                    if let Modal::AddEmployee(form) | Modal::EditEmployee(_, form) = &mut self.modal {
+                        form.mentee.retain(|m| m != &mentee);
                     }
                 }
                 ModalMessage::MentorSelected(mentor) => {
@@ -849,7 +880,7 @@ fn core_to_ui_employee(e: CoreEmployee) -> UIEmployee {
         sex: e.sex.to_string(),
         days_per_week: e.required_days as u8,
         fixed_days: e.fixed_days,
-        mentee: None, // TODO: Map relationships
+        mentee: vec![], // TODO: Map relationships
         mentor: None, // TODO: Map relationships
         attendance: [AttendanceStatus::NA; 5], // Default to NA
         past_attendance: vec![],

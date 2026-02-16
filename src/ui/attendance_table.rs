@@ -31,7 +31,7 @@ pub struct Employee {
     pub sex: String,
     pub days_per_week: u8,
     pub fixed_days: Vec<Weekday>,
-    pub mentee: Option<String>,
+    pub mentee: Vec<String>,
     pub mentor: Option<String>,
     pub attendance: [AttendanceStatus; 5], // Mon-Fri
     pub past_attendance: Vec<(String, [AttendanceStatus; 5])>, // Label (e.g. "Dec 2025") and attendance
