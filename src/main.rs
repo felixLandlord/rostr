@@ -73,14 +73,8 @@ impl RostrApp {
         match Database::new() {
             Ok(db) => {
                 app.database = Some(db);
-                // Load employees
-                if let Some(db) = &app.database {
-                    if let Ok(conn) = db.get_connection() {
-                        if let Ok(employees) = EmployeeRepository::find_all(&conn) {
-                            app.attendance_table.employees = employees.into_iter().map(core_to_ui_employee).collect();
-                        }
-                    }
-                }
+                // Load schedule and employees for the current month
+                app.load_schedule_for_date();
             }
             Err(e) => {
                 commands.push(app.show_toast("Database Error".to_string(), e.to_string(), Status::Error));
