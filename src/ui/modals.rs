@@ -518,7 +518,11 @@ fn format_days(attendance: &[AttendanceStatus; 5]) -> String {
         .collect();
     
     if present_days.is_empty() {
-        "Remote Week".to_string()
+        if attendance.iter().all(|s| *s == AttendanceStatus::NA) {
+            "N/A".to_string()
+        } else {
+            "Remote Week".to_string()
+        }
     } else {
         present_days.join(" ")
     }

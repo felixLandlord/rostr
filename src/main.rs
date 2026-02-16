@@ -278,7 +278,85 @@ impl RostrApp {
                 ActionBarMessage::Report => {
                     if let Some(idx) = self.attendance_table.selected_employee {
                         if let Some(employee) = self.attendance_table.employees.get(idx) {
-                             self.modal = Modal::EmployeeReport(employee.clone(), self.current_date.format("%B %Y").to_string());
+                             let mut employee_clone = employee.clone();
+                             let mut report_date_str = self.current_date.format("%B %Y").to_string();
+                             
+                             if let Some(db) = &self.database {
+                                 if let Ok(conn) = db.get_connection() {
+                                     // Fetch last 12 months
+                                     if let Ok(schedules) = ScheduleRepository::find_recent_schedules(&conn, 12) {
+                                         // 1. Identify the latest schedule (most recent month in DB)
+                                         // 2. Identify past schedules
+                                         
+                                         let mut past_attendance = Vec::new();
+                                         let weekdays = [Weekday::Monday, Weekday::Tuesday, Weekday::Wednesday, Weekday::Thursday, Weekday::Friday];
+                                         
+                                         if let Some(latest_schedule) = schedules.first() {
+                                            // Update current schedule info to be the latest from DB
+                                            report_date_str = NaiveDate::from_ymd_opt(latest_schedule.year, latest_schedule.month, 1)
+                                                 .unwrap_or_default()
+                                                 .format("%B %Y")
+                                                 .to_string();
+
+                                            let is_included = latest_schedule.included_employees.contains(&employee_clone.id);
+                                            let has_any_day = latest_schedule.schedules.values().any(|emps| emps.iter().any(|e| e.id == employee_clone.id));
+
+                                            if is_included || has_any_day {
+                                                for (i, day) in weekdays.iter().enumerate() {
+                                                     let employees_on_day = latest_schedule.get_employees_for_day(*day);
+                                                     let is_scheduled = employees_on_day.iter().any(|e| e.id == employee_clone.id);
+                                                     
+                                                     if is_scheduled {
+                                                         employee_clone.attendance[i] = AttendanceStatus::Office;
+                                                     } else if is_included {
+                                                         employee_clone.attendance[i] = AttendanceStatus::Remote;
+                                                     } else {
+                                                         employee_clone.attendance[i] = AttendanceStatus::NA;
+                                                     }
+                                                }
+                                            } else {
+                                                // If latest schedule exists but employee not in it -> N/A
+                                                 employee_clone.attendance = [AttendanceStatus::NA; 5];
+                                            }
+                                         } else {
+                                             // No schedules in DB at all
+                                             employee_clone.attendance = [AttendanceStatus::NA; 5];
+                                         }
+
+                                         // Process past schedules (skipping the first one which is latest)
+                                         for schedule in schedules.iter().skip(1) {
+                                             let is_included = schedule.included_employees.contains(&employee_clone.id);
+                                             let has_any_day = schedule.schedules.values().any(|emps| emps.iter().any(|e| e.id == employee_clone.id));
+
+                                             if is_included || has_any_day {
+                                                 let date_label = NaiveDate::from_ymd_opt(schedule.year, schedule.month, 1)
+                                                     .unwrap_or_default()
+                                                     .format("%B %Y")
+                                                     .to_string();
+                                                     
+                                                 let mut attendance = [AttendanceStatus::NA; 5];
+                                                 
+                                                 for (i, day) in weekdays.iter().enumerate() {
+                                                     let employees_on_day = schedule.get_employees_for_day(*day);
+                                                     let is_scheduled = employees_on_day.iter().any(|e| e.id == employee_clone.id);
+                                                     
+                                                     if is_scheduled {
+                                                         attendance[i] = AttendanceStatus::Office;
+                                                     } else if is_included {
+                                                         attendance[i] = AttendanceStatus::Remote;
+                                                     } else {
+                                                         attendance[i] = AttendanceStatus::NA;
+                                                     }
+                                                 }
+                                                 past_attendance.push((date_label, attendance));
+                                             }
+                                         }
+                                         employee_clone.past_attendance = past_attendance;
+                                     }
+                                 }
+                             }
+
+                             self.modal = Modal::EmployeeReport(employee_clone, report_date_str);
                         }
                     } else {
                         let data = self.calculate_report();

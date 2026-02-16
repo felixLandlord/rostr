@@ -84,6 +84,28 @@ impl ScheduleRepository {
         Ok(past_schedules)
     }
 
+    pub fn find_recent_schedules(conn: &Connection, limit: i32) -> Result<Vec<MonthlySchedule>> {
+        let mut stmt = conn.prepare(
+            "SELECT schedule_data FROM schedules
+             ORDER BY year DESC, month DESC
+             LIMIT ?1",
+        )?;
+
+        let rows = stmt.query_map(params![limit], |row| {
+            let schedule_json: String = row.get(0)?;
+            let schedule: MonthlySchedule = serde_json::from_str(&schedule_json)
+                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(e.into()))?;
+            Ok(schedule)
+        })?;
+
+        let mut schedules = Vec::new();
+        for row in rows {
+            schedules.push(row?);
+        }
+
+        Ok(schedules)
+    }
+
     pub fn delete(conn: &Connection, year: i32, month: u32) -> Result<()> {
         conn.execute(
             "DELETE FROM schedules WHERE year = ?1 AND month = ?2",
