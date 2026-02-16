@@ -909,7 +909,7 @@ fn form_view<'a>(
         .padding([24, 32])
         .align_x(Alignment::End)
         .style(move |_t: &Theme| container::Style {
-            background: Some(if is_dark { Color::from_rgb(0.1, 0.1, 0.1) } else { Color::from_rgb(0.98, 0.98, 0.98) }.into()),
+            background: Some(if is_dark { theme::SURFACE_DARK } else { theme::SURFACE_LIGHT }.into()),
             border: iced::border::Border {
                 radius: iced::border::Radius { bottom_left: 16.0, bottom_right: 16.0, ..0.0.into() },
                 ..Default::default()
@@ -973,8 +973,8 @@ fn delete_confirmation_view<'a>(idx: usize, is_dark: bool) -> Element<'a, Messag
         .width(Length::Fill)
         .padding([24, 32])
         .align_x(Alignment::End)
-         .style(move |_t: &Theme| container::Style {
-            background: Some(if is_dark { Color::from_rgb(0.1, 0.1, 0.1) } else { Color::from_rgb(0.98, 0.98, 0.98) }.into()),
+        .style(move |_t: &Theme| container::Style {
+            background: Some(if is_dark { theme::SURFACE_DARK } else { theme::SURFACE_LIGHT }.into()),
             border: iced::border::Border {
                 radius: iced::border::Radius { bottom_left: 16.0, bottom_right: 16.0, ..0.0.into() },
                 ..Default::default()
