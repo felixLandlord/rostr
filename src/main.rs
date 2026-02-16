@@ -15,12 +15,13 @@ use ui::top_bar::{Message as TopBarMessage, TopBar};
 use core::storage::{Database, EmployeeRepository, ScheduleRepository};
 use core::engine::Engine;
 use core::models::{Employee as CoreEmployee, MonthlySchedule, Role, Sex, Weekday};
+use core::integrations::{generate_xlsx_data, save_xlsx_with_dialog};
 use std::str::FromStr;
 
 #[derive(Debug, Clone)]
 pub enum Message {
     Tick,
-    FileActionComplete,
+    FileActionComplete(Result<(), String>),
     ToastTimeout(u64),
     CloseToast(u64),
     ActionBar(ActionBarMessage),
@@ -291,7 +292,11 @@ impl RostrApp {
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Tick => {},
-            Message::FileActionComplete => {},
+            Message::FileActionComplete(result) => {
+                if let Err(e) = result {
+                    return self.show_toast("File Action Failed".to_string(), e, Status::Error);
+                }
+            },
             Message::ToastTimeout(id) => {
                 self.toasts.retain(|t| t.id != id);
             }
@@ -485,12 +490,24 @@ impl RostrApp {
                 ActionBarMessage::Import => {
                     return Task::perform(async {
                         let _ = rfd::AsyncFileDialog::new().pick_file().await;
-                    }, |_| Message::FileActionComplete);
+                        Ok::<(), String>(())
+                    }, Message::FileActionComplete);
                 }
                 ActionBarMessage::Export => {
-                    return Task::perform(async {
-                        let _ = rfd::AsyncFileDialog::new().save_file().await;
-                    }, |_| Message::FileActionComplete);
+                    if let Some(schedule) = &self.current_schedule {
+                        match generate_xlsx_data(schedule) {
+                            Ok((filename, data)) => {
+                                return Task::perform(async move {
+                                    save_xlsx_with_dialog(filename, data).await.map_err(|e| e.to_string())
+                                }, Message::FileActionComplete);
+                            }
+                            Err(e) => {
+                                return self.show_toast("Export Error".to_string(), e.to_string(), Status::Error);
+                            }
+                        }
+                    } else {
+                        return self.show_toast("No Schedule".to_string(), "Please generate a schedule first.".to_string(), Status::Info);
+                    }
                 }
                 _ => {}
             },
