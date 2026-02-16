@@ -411,6 +411,11 @@ impl RostrApp {
                     };
 
                     if let Some(form) = form_data {
+                        // Check for duplicate name (case-insensitive)
+                        if self.attendance_table.employees.iter().any(|e| e.name.trim().eq_ignore_ascii_case(form.name.trim())) {
+                            return self.show_toast("Duplicate Name".to_string(), "An employee with this name already exists.".to_string(), Status::Error);
+                        }
+
                         if let Some(db) = &self.database {
                             if let Ok(conn) = db.get_connection() {
                                 // Convert form to CoreEmployee
@@ -483,6 +488,11 @@ impl RostrApp {
 
                     if let Some(form) = form_data {
                          if let Some(employee) = self.attendance_table.employees.get(idx) {
+                            // Check for duplicate name (excluding current employee)
+                            if self.attendance_table.employees.iter().any(|e| e.id != employee.id && e.name.trim().eq_ignore_ascii_case(form.name.trim())) {
+                                return self.show_toast("Duplicate Name".to_string(), "An employee with this name already exists.".to_string(), Status::Error);
+                            }
+
                             if let Some(db) = &self.database {
                                 if let Ok(conn) = db.get_connection() {
                                     // Fetch original to keep ID
