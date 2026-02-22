@@ -509,12 +509,23 @@ impl RostrApp {
                     // 2. If yes, revert to it (update current_schedule and UI)
                     // 3. If no, clear current_schedule and reset UI to N/A (which happens automatically if current_schedule is None)
                     
+                    let prev_schedule = self.current_schedule.clone();
                     self.load_schedule_for_date();
                     
-                    if self.current_schedule.is_some() {
-                        return self.show_toast("Changes Undone".to_string(), "Reverted to the last saved schedule.".to_string(), Status::Success);
-                    } else {
-                        return self.show_toast("Changes Undone".to_string(), "Reverted to empty state (no saved schedule).".to_string(), Status::Info);
+                    // Only show toast if something actually changed
+                    let changed = match (&prev_schedule, &self.current_schedule) {
+                        (None, None) => false,
+                        (Some(_), None) => true,
+                        (None, Some(_)) => true,
+                        (Some(a), Some(b)) => !a.is_same_content(b),
+                    };
+
+                    if changed {
+                        if self.current_schedule.is_some() {
+                            return self.show_toast("Changes Undone".to_string(), "Reverted to the last saved schedule.".to_string(), Status::Success);
+                        } else {
+                            return self.show_toast("Changes Undone".to_string(), "Reverted to empty state (no saved schedule).".to_string(), Status::Info);
+                        }
                     }
                 }
                 ActionBarMessage::Import => {
