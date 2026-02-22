@@ -41,8 +41,8 @@ impl TopBar {
         // Left Section: Logo and Date
         let logo = button(
             container(icon_calendar().size(22).color(PRIMARY))
-                .width(40)
-                .height(40)
+                .width(32)
+                .height(32)
                 .align_x(Alignment::Center)
                 .align_y(Alignment::Center),
         )
