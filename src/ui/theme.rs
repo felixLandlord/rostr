@@ -20,7 +20,13 @@ pub const TEXT_MUTED_LIGHT: Color = Color::from_rgb(0.420, 0.455, 0.502); // #6b
 pub const TEXT_MUTED_DARK: Color = Color::from_rgb(0.612, 0.639, 0.686); // #9ca3af
 
 pub const GRAY_50: Color = Color::from_rgb(0.976, 0.980, 0.984); // #f9fafb
+pub const GRAY_100: Color = Color::from_rgb(0.957, 0.965, 0.976); // #f3f4f6
+pub const GRAY_200: Color = Color::from_rgb(0.898, 0.914, 0.929); // #e5e7eb
+pub const GRAY_300: Color = Color::from_rgb(0.820, 0.843, 0.867); // #d1d5db
+pub const GRAY_700: Color = Color::from_rgb(0.224, 0.255, 0.318); // #374151
 pub const GRAY_800: Color = Color::from_rgb(0.122, 0.149, 0.192); // #1f2937
+
+pub const ERROR: Color = Color::from_rgb(0.937, 0.267, 0.267); // #ef4444
 
 pub fn text_input_style(_theme: &iced::Theme, status: text_input::Status, is_dark: bool) -> text_input::Style {
     let bg = if is_dark { SURFACE_DARK } else { SURFACE_LIGHT };

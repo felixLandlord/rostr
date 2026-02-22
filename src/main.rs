@@ -514,8 +514,7 @@ impl RostrApp {
                     } else {
                         return self.show_toast("No Schedule".to_string(), "Please generate a schedule first.".to_string(), Status::Info);
                     }
-                }
-                _ => {}
+                },
             },
             Message::AttendanceTable(msg) => {
                 return self.attendance_table.update(msg).map(Message::AttendanceTable);
@@ -552,6 +551,9 @@ impl RostrApp {
                     };
                     self.load_schedule_for_date();
                 }
+                TopBarMessage::SettingsPressed => {
+                    self.modal = Modal::Settings;
+                },
                 _ => {}
             },
             Message::Modal(msg) => match msg {
@@ -563,6 +565,55 @@ impl RostrApp {
                 }
                 ModalMessage::DownloadPdf => {
                     return self.show_toast("Download PDF".to_string(), "PDF Download started...".to_string(), Status::Success);
+                }
+                ModalMessage::ResetApp => {
+                    self.modal = Modal::ConfirmResetApp;
+                }
+                ModalMessage::ResetSchedules => {
+                    self.modal = Modal::ConfirmResetSchedules;
+                }
+                ModalMessage::ResetEmployees => {
+                    self.modal = Modal::ConfirmResetEmployees;
+                }
+                ModalMessage::ConfirmResetAppAction => {
+                     if let Some(db) = &self.database {
+                         if let Err(e) = db.clear_all_data() {
+                             return self.show_toast("Reset Failed".to_string(), e.to_string(), Status::Error);
+                         }
+                         self.current_schedule = None;
+                         self.attendance_table.employees.clear();
+                         self.attendance_table.selected_employee = None;
+                         self.refresh_employees();
+                         self.modal = Modal::None;
+                         return self.show_toast("App Reset".to_string(), "All data has been cleared.".to_string(), Status::Success);
+                     }
+                }
+                ModalMessage::ConfirmResetSchedulesAction => {
+                     if let Some(db) = &self.database {
+                         if let Ok(conn) = db.get_connection() {
+                             if let Err(e) = ScheduleRepository::delete_all(&conn) {
+                                 return self.show_toast("Reset Failed".to_string(), e.to_string(), Status::Error);
+                             }
+                             self.current_schedule = None;
+                             self.refresh_employees();
+                             self.modal = Modal::None;
+                             return self.show_toast("Schedules Reset".to_string(), "All schedules have been cleared.".to_string(), Status::Success);
+                         }
+                     }
+                }
+                ModalMessage::ConfirmResetEmployeesAction => {
+                     if let Some(db) = &self.database {
+                         if let Ok(conn) = db.get_connection() {
+                             if let Err(e) = EmployeeRepository::delete_all(&conn) {
+                                 return self.show_toast("Reset Failed".to_string(), e.to_string(), Status::Error);
+                             }
+                             self.attendance_table.employees.clear();
+                             self.attendance_table.selected_employee = None;
+                             self.refresh_employees();
+                             self.modal = Modal::None;
+                             return self.show_toast("Employees Reset".to_string(), "All employees have been deleted.".to_string(), Status::Success);
+                         }
+                     }
                 }
                 ModalMessage::SubmitAdd => {
                     let form_data = if let Modal::AddEmployee(form) = &self.modal {

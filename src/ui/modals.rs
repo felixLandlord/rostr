@@ -1,6 +1,9 @@
-use iced::widget::{button, column, container, pick_list, row, text, text_input, scrollable};
+use iced::widget::{button, column, container, pick_list, row, text, text_input, scrollable, Space};
 use iced::{Alignment, Color, Element, Length, Padding, Theme};
-use lucide_icons::iced::{icon_calendar, icon_calendar_check_2, icon_calendar_plus_2, icon_chart_no_axes_column, icon_user_plus, icon_user_round_pen, icon_x};
+use lucide_icons::iced::{
+    icon_building_2, icon_calendar, icon_calendar_check_2, icon_chart_no_axes_column, icon_clipboard_list,
+    icon_house, icon_scale, icon_settings, icon_trash_2, icon_user_plus, icon_user_round_pen, icon_users, icon_x,
+};
 use crate::ui::theme;
 use crate::ui::attendance_table::{AttendanceStatus, Employee};
 use crate::core::models::types::Weekday;
@@ -30,6 +33,10 @@ pub enum Modal {
     DeleteEmployee(usize),
     GeneralReport(ReportData),
     EmployeeReport(Employee, String),
+    Settings,
+    ConfirmResetApp,
+    ConfirmResetSchedules,
+    ConfirmResetEmployees,
 }
 
 #[derive(Debug, Clone)]
@@ -112,6 +119,12 @@ pub enum Message {
     OverlayPressed,
     Close,
     DownloadPdf,
+    ResetApp,
+    ResetSchedules,
+    ResetEmployees,
+    ConfirmResetAppAction,
+    ConfirmResetSchedulesAction,
+    ConfirmResetEmployeesAction,
 }
 
 const ROLES: &[&str] = &[
@@ -130,8 +143,8 @@ const MENTEES: &[&str] = &["None", "Alex Rivera", "Sam Chen", "Jordan Smith"];
 const MENTORS: &[&str] = &["None", "Sarah Jenkins", "Michael Ross", "Elena Rodriguez"];
 
 pub fn view<'a>(modal: &'a Modal, is_dark: bool) -> Element<'a, Message> {
-    let modal_content = match modal {
-        Modal::None => return text("").into(),
+    match modal {
+        Modal::None => text("").into(),
         Modal::AddEmployee(form) => form_view(form, "Add New Employee", "Add Employee", "person_add", false, is_dark),
         Modal::EditEmployee(idx, form) => form_view(form, "Edit Employee Details", "Save Changes", "person_edit", true, is_dark).map(move |msg| match msg {
              Message::SubmitAdd => Message::SubmitEdit(*idx),
@@ -140,23 +153,11 @@ pub fn view<'a>(modal: &'a Modal, is_dark: bool) -> Element<'a, Message> {
         Modal::DeleteEmployee(idx) => delete_confirmation_view(*idx, is_dark),
         Modal::GeneralReport(data) => general_report_view(data, is_dark),
         Modal::EmployeeReport(employee, date_str) => employee_report_view(employee, date_str, is_dark),
-    };
-
-    container(
-        container(modal_content)
-            .width(Length::Fill)
-            .align_x(Alignment::Center)
-            .align_y(Alignment::Center)
-    )
-    .width(Length::Fill)
-    .height(Length::Fill)
-    .center_x(Length::Fill)
-    .center_y(Length::Fill)
-    .style(move |_| container::Style {
-        background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.5).into()),
-        ..Default::default()
-    })
-    .into()
+        Modal::Settings => settings_view(is_dark),
+        Modal::ConfirmResetApp => confirm_reset_view("Reset Application", "This will delete ALL data including employees and schedules. This action cannot be undone.", Message::ConfirmResetAppAction, is_dark),
+        Modal::ConfirmResetSchedules => confirm_reset_view("Reset Schedules", "This will delete ALL schedules. This action cannot be undone.", Message::ConfirmResetSchedulesAction, is_dark),
+        Modal::ConfirmResetEmployees => confirm_reset_view("Reset Employees", "This will delete ALL employees and their associated schedules. This action cannot be undone.", Message::ConfirmResetEmployeesAction, is_dark),
+    }
 }
 
 fn stat_card_modern<'a>(label: &'a str, value: String, _icon_type: &'a str, is_dark: bool) -> Element<'a, Message> {
@@ -165,73 +166,6 @@ fn stat_card_modern<'a>(label: &'a str, value: String, _icon_type: &'a str, is_d
             text(label).size(12).style(move |_t: &Theme| text::Style { color: Some(if is_dark { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT }) }),
             text(value).size(24).font(iced::font::Font { weight: iced::font::Weight::Bold, ..Default::default() }),
         ].spacing(4)
-    )
-    .padding(12)
-    .width(Length::Fill)
-    .style(move |_t: &Theme| container::Style {
-        background: Some(if is_dark { theme::SURFACE_DARK } else { theme::SURFACE_LIGHT }.into()),
-        border: iced::border::Border {
-            radius: 8.0.into(),
-            width: 1.0,
-            color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
-        },
-        ..Default::default()
-    })
-    .into()
-}
-
-fn daily_split_card<'a>(day: &'a str, office_pct: f32, remote_pct: f32, is_dark: bool) -> Element<'a, Message> {
-    let bar_height = 6.0;
-    
-    let office_bar = container(iced::widget::Space::new())
-        .width(Length::FillPortion((office_pct as u16).max(1)))
-        .height(Length::Fixed(bar_height))
-        .style(move |_| container::Style {
-            background: Some(theme::PRIMARY.into()),
-            border: iced::border::Border {
-                radius: iced::border::Radius {
-                    top_left: 3.0,
-                    bottom_left: 3.0,
-                    top_right: 0.0,
-                    bottom_right: 0.0,
-                },
-                ..Default::default()
-            },
-            ..Default::default()
-        });
-
-    let remote_bar = container(iced::widget::Space::new())
-        .width(Length::FillPortion((remote_pct as u16).max(1)))
-        .height(Length::Fixed(bar_height))
-        .style(move |_| container::Style {
-            background: Some(Color::from_rgb(0.8, 0.8, 0.8).into()),
-            border: iced::border::Border {
-                radius: iced::border::Radius {
-                    top_left: 0.0,
-                    bottom_left: 0.0,
-                    top_right: 3.0,
-                    bottom_right: 3.0,
-                },
-                ..Default::default()
-            },
-            ..Default::default()
-        });
-
-    container(
-        column![
-            row![
-                text(day).size(12).font(iced::font::Font { weight: iced::font::Weight::Bold, ..Default::default() }),
-                text(format!("{:.0}% / {:.0}%", office_pct, remote_pct))
-                    .size(10)
-                    .width(Length::Fill)
-                    .align_x(Alignment::End)
-                    .style(move |_t: &Theme| text::Style { color: Some(if is_dark { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT }) }),
-            ].width(Length::Fill).align_y(Alignment::Center),
-            
-            row![office_bar, remote_bar].width(Length::Fill).spacing(1),
-            
-            text("Office / Remote").size(10).style(move |_t: &Theme| text::Style { color: Some(if is_dark { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT }) }),
-        ].spacing(8)
     )
     .padding(12)
     .width(Length::Fill)
@@ -360,6 +294,128 @@ fn table_view<'a>(title: &'a str, headers: Vec<String>, rows: Vec<Vec<String>>, 
             ..Default::default()
         })
     ].spacing(12).into()
+}
+
+fn format_days(attendance: &[AttendanceStatus; 5]) -> String {
+    let days = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+    let present_days: Vec<&str> = attendance.iter().zip(days.iter())
+        .filter(|(status, _)| **status == AttendanceStatus::Office)
+        .map(|(_, day)| *day)
+        .collect();
+    
+    if present_days.is_empty() {
+        "Remote Week".to_string()
+    } else {
+        present_days.join(" ")
+    }
+}
+
+fn daily_split_card<'a>(day: &'a str, office_pct: f32, remote_pct: f32, is_dark: bool) -> Element<'a, Message> {
+    let bar_height = 6.0;
+    
+    let office_bar = container(iced::widget::Space::new())
+        .width(Length::FillPortion((office_pct as u16).max(1)))
+        .height(Length::Fixed(bar_height))
+        .style(move |_| container::Style {
+            background: Some(theme::PRIMARY.into()),
+            border: iced::border::Border {
+                radius: iced::border::Radius {
+                    top_left: 3.0,
+                    bottom_left: 3.0,
+                    top_right: 0.0,
+                    bottom_right: 0.0,
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+
+    let remote_bar = container(iced::widget::Space::new())
+        .width(Length::FillPortion((remote_pct as u16).max(1)))
+        .height(Length::Fixed(bar_height))
+        .style(move |_| container::Style {
+            background: Some(Color::from_rgb(0.8, 0.8, 0.8).into()),
+            border: iced::border::Border {
+                radius: iced::border::Radius {
+                    top_left: 0.0,
+                    bottom_left: 0.0,
+                    top_right: 3.0,
+                    bottom_right: 3.0,
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+
+    container(
+        column![
+            row![
+                text(day).size(12).font(iced::font::Font { weight: iced::font::Weight::Bold, ..Default::default() }),
+                text(format!("{:.0}% / {:.0}%", office_pct, remote_pct))
+                    .size(10)
+                    .width(Length::Fill)
+                    .align_x(Alignment::End)
+                    .style(move |_t: &Theme| text::Style { color: Some(if is_dark { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT }) }),
+            ].width(Length::Fill).align_y(Alignment::Center),
+            
+            row![office_bar, remote_bar].width(Length::Fill).spacing(1),
+            
+            text("Office / Remote").size(10).style(move |_t: &Theme| text::Style { color: Some(if is_dark { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT }) }),
+        ].spacing(8)
+    )
+    .padding(12)
+    .width(Length::Fill)
+    .style(move |_t: &Theme| container::Style {
+        background: Some(if is_dark { theme::SURFACE_DARK } else { theme::SURFACE_LIGHT }.into()),
+        border: iced::border::Border {
+            radius: 8.0.into(),
+            width: 1.0,
+            color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
+        },
+        ..Default::default()
+    })
+    .into()
+}
+
+fn utilization_card<'a>(utilization: [f32; 5], is_dark: bool) -> Element<'a, Message> {
+    let days = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+    
+    let bars: Vec<Element<'a, Message>> = days.iter().zip(utilization.iter()).map(|(day, &pct)| {
+        let height = (pct / 100.0 * 60.0).max(4.0);
+        column![
+            container(iced::widget::Space::new())
+                .width(Length::Fixed(8.0))
+                .height(Length::Fixed(height))
+                .style(move |_| container::Style {
+                    background: Some(theme::PRIMARY.into()),
+                    border: iced::border::Border {
+                        radius: 4.0.into(),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                }),
+            text(*day).size(10).style(move |_t: &Theme| text::Style { color: Some(if is_dark { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT }) })
+        ].spacing(4).align_x(Alignment::Center).into()
+    }).collect();
+
+    container(
+        column![
+            text("Office Utilization").size(12).style(move |_t: &Theme| text::Style { color: Some(if is_dark { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT }) }),
+            row(bars).spacing(8).align_y(Alignment::End).height(Length::Fixed(80.0))
+        ].spacing(12)
+    )
+    .padding(12)
+    .width(Length::Fill)
+    .style(move |_t: &Theme| container::Style {
+        background: Some(if is_dark { theme::SURFACE_DARK } else { theme::SURFACE_LIGHT }.into()),
+        border: iced::border::Border {
+            radius: 8.0.into(),
+            width: 1.0,
+            color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
+        },
+        ..Default::default()
+    })
+    .into()
 }
 
 fn general_report_view<'a>(data: &'a ReportData, is_dark: bool) -> Element<'a, Message> {
@@ -492,7 +548,7 @@ fn general_report_view<'a>(data: &'a ReportData, is_dark: bool) -> Element<'a, M
     ]
     .spacing(16);
 
-    container(
+    let card = container(
         content
     )
     .width(Length::Fixed(800.0))
@@ -509,26 +565,9 @@ fn general_report_view<'a>(data: &'a ReportData, is_dark: bool) -> Element<'a, M
             blur_radius: 20.0,
         },
         ..Default::default()
-    })
-    .into()
-}
+    });
 
-fn format_days(attendance: &[AttendanceStatus; 5]) -> String {
-    let days = ["Mon", "Tue", "Wed", "Thu", "Fri"];
-    let present_days: Vec<&str> = attendance.iter().zip(days.iter())
-        .filter(|(status, _)| **status == AttendanceStatus::Office)
-        .map(|(_, day)| *day)
-        .collect();
-    
-    if present_days.is_empty() {
-        if attendance.iter().all(|s| *s == AttendanceStatus::NA) {
-            "N/A".to_string()
-        } else {
-            "Remote Week".to_string()
-        }
-    } else {
-        present_days.join(" ")
-    }
+    backdrop(card)
 }
 
 fn employee_report_view<'a>(employee: &'a Employee, date_str: &'a str, is_dark: bool) -> Element<'a, Message> {
@@ -659,7 +698,7 @@ fn employee_report_view<'a>(employee: &'a Employee, date_str: &'a str, is_dark: 
     )
     .height(Length::Fill);
 
-    container(
+    let card = container(
         column![
             scrollable_content,
         ]
@@ -678,8 +717,9 @@ fn employee_report_view<'a>(employee: &'a Employee, date_str: &'a str, is_dark: 
             blur_radius: 20.0,
         },
         ..Default::default()
-    })
-    .into()
+    });
+
+    backdrop(card)
 }
 
 fn form_view<'a>(
@@ -721,217 +761,205 @@ fn form_view<'a>(
             ].spacing(12).align_y(Alignment::Center),
         ]
         .width(Length::Fill)
-        .align_y(Alignment::Center)
-        .padding([24, 32])
-        .spacing(20),
+        .align_y(Alignment::Center),
 
-        container(column![].spacing(0).width(Length::Fill).height(1)).style(move |_t: &Theme| container::Style {
-            background: Some(if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT }.into()),
-            ..Default::default()
-        }),
-
-        // Body
-        column![
-            // Row 1
-            row![
-                input_group("Full Name", 
-                    text_input("e.g. Jane Doe", &form.name)
-                        .on_input(Message::NameChanged)
-                        .padding(10)
-                        .style(move |t, s| theme::text_input_style(t, s, is_dark))
-                ),
-                input_group("Job Title/Role", 
-                    pick_list(ROLES, form.role.as_deref(), |r| Message::RoleSelected(r.to_string()))
-                        .width(Length::Fill)
-                        .padding(10)
-                        .style(move |t, s| theme::pick_list_style(t, s, is_dark))
+        // Form Fields
+        row![
+            input_group("Full Name", 
+                text_input("e.g. Sarah Jenkins", &form.name)
+                    .on_input(Message::NameChanged)
+                    .padding(12)
+                    .style(move |t, s| theme::text_input_style(t, s, is_dark))
+            ),
+            input_group("Role", 
+                pick_list(
+                    ROLES.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+                    form.role.clone(),
+                    Message::RoleSelected
                 )
-            ].spacing(24),
+                    .padding(12)
+                    .width(Length::Fill)
+                    .style(move |t, s| theme::pick_list_style(t, s, is_dark))
+            )
+        ].spacing(20),
 
-            // Row 2
-            row![
-                input_group("Sex", 
-                     pick_list(SEX_OPTIONS, form.sex.as_deref(), |s| Message::SexSelected(s.to_string()))
-                        .width(Length::Fill)
-                        .padding(10)
-                        .style(move |t, s| theme::pick_list_style(t, s, is_dark))
-                ),
-                input_group("Required Days Per Week", 
-                     pick_list(DAYS_OPTIONS, form.days_per_week, Message::DaysChanged)
-                        .width(Length::Fill)
-                        .padding(10)
-                        .style(move |t, s| theme::pick_list_style(t, s, is_dark))
+        row![
+            input_group("Sex", 
+                pick_list(
+                    SEX_OPTIONS.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+                    form.sex.clone(),
+                    Message::SexSelected
                 )
-            ].spacing(24),
+                    .padding(12)
+                    .width(Length::Fill)
+                    .style(move |t, s| theme::pick_list_style(t, s, is_dark))
+            ),
+            input_group("Required Office Days", 
+                pick_list(DAYS_OPTIONS, form.days_per_week, Message::DaysChanged)
+                    .padding(12)
+                    .width(Length::Fill)
+                    .placeholder("Select days")
+                    .style(move |t, s| theme::pick_list_style(t, s, is_dark))
+            )
+        ].spacing(20),
 
-            // Row 3
-            row![
-                // Multi-select for Mentees
-                input_group("Mentees", 
-                    column![
-                        pick_list(form.available_employees.as_slice(), None::<String>, |m| Message::MenteeSelected(m.to_string()))
-                            .placeholder("Add Mentee")
-                            .width(Length::Fill)
-                            .padding(10)
-                            .style(move |t, s| theme::pick_list_style(t, s, is_dark)),
-                        
-                        if !form.mentee.is_empty() {
-                            row(
-                                form.mentee.iter().map(|m| {
-                                    container(
-                                        row![
-                                            text(m).size(12),
-                                            button(icon_x().size(12))
-                                                .on_press(Message::MenteeRemoved(m.clone()))
-                                                .padding(2)
-                                                .style(move |_t, _s| button::Style {
-                                                    text_color: if is_dark { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT },
-                                                    background: None,
-                                                    ..Default::default()
-                                                })
-                                        ]
-                                        .spacing(4)
-                                        .align_y(Alignment::Center)
-                                    )
-                                    .padding([4, 8])
-                                    .style(move |_t: &Theme| container::Style {
-                                        background: Some(if is_dark { theme::SURFACE_DARK } else { theme::GRAY_50 }.into()),
-                                        border: iced::border::Border {
-                                            radius: 12.0.into(),
-                                            width: 1.0,
-                                            color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
-                                        },
-                                        ..Default::default()
-                                    })
-                                    .into()
-                                })
-                            ).spacing(8).wrap()
-                        } else {
-                            row![].wrap()
-                        }
-                    ].spacing(8)
-                ),
-                input_group("Mentor", 
-                     pick_list(form.available_employees.as_slice(), form.mentor.clone(), |m| Message::MentorSelected(m.to_string()))
-                        .width(Length::Fill)
-                        .padding(10)
-                        .style(move |t, s| theme::pick_list_style(t, s, is_dark))
+        // Relationships
+        row![
+             // Mentor Selection
+             input_group("Assign Mentor", 
+                pick_list(
+                    if form.available_employees.is_empty() { 
+                         std::borrow::Cow::Owned(MENTORS.iter().map(|s| s.to_string()).collect())
+                    } else {
+                         std::borrow::Cow::Borrowed(form.available_employees.as_slice())
+                    },
+                    form.mentor.clone(), 
+                    Message::MentorSelected
                 )
-            ].spacing(24),
-
-            // Fixed Office Days
+                .padding(12)
+                .width(Length::Fill)
+                .style(move |t, s| theme::pick_list_style(t, s, is_dark))
+            ),
+            // Mentee Selection (Multi-select simulation via chips?)
+            // For now, simple picklist to add one by one or a custom widget.
+            // Let's use a column of added mentees and a picklist to add more.
             column![
+                text("Assign Mentees").size(14).font(iced::font::Font { weight: iced::font::Weight::Bold, ..Default::default() }),
                 row![
-                    text("FIXED OFFICE DAYS").size(12).font(iced::font::Font { weight: iced::font::Weight::Semibold, ..Default::default() }),
-                    text("Select recurring office days").size(11).style(move |_t: &Theme| text::Style { color: Some(if is_dark { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT }) }),
-                ].width(Length::Fill).align_y(Alignment::Center).spacing(12).padding(Padding { bottom: 8.0, ..Default::default() }),
-
-                row(
-                    (0..5).map(|i| {
-                        let day_name = match i { 0 => "MON", 1 => "TUE", 2 => "WED", 3 => "THU", 4 => "FRI", _ => "" };
-                        let is_active = form.attendance[i] == AttendanceStatus::Office;
-                        
-                        button(text(day_name).size(11).font(iced::font::Font { weight: iced::font::Weight::Medium, ..Default::default() }).align_x(Alignment::Center))
-                            .on_press(Message::ToggleDay(i))
-                            .width(Length::Fill)
-                            .padding([8, 0])
-                            .style(move |_t, _s| {
-                                let active_bg = theme::PRIMARY;
-                                let inactive_bg = if is_dark { theme::SURFACE_DARK } else { Color::WHITE };
-                                let inactive_text = if is_dark { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT };
-                                let border_col = if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT };
-
-                                if is_active {
-                                    button::Style {
-                                        background: Some(active_bg.into()),
-                                        text_color: Color::WHITE,
-                                        border: iced::border::Border { radius: 8.0.into(), ..Default::default() },
-                                        ..Default::default()
-                                    }
-                                } else {
-                                     button::Style {
-                                        background: Some(inactive_bg.into()),
-                                        text_color: inactive_text,
-                                        border: iced::border::Border { radius: 8.0.into(), width: 1.0, color: border_col },
-                                        ..Default::default()
-                                    }
-                                }
-                            })
-                            .into()
-                    })
-                ).spacing(8)
-            ].spacing(4)
-
-        ]
-        .padding([24, 32])
-        .spacing(24),
-
-        // Footer
-        container(
-            row![
-                button(text("Cancel").size(14).font(iced::font::Font { weight: iced::font::Weight::Bold, ..Default::default() }))
-                    .on_press(Message::Cancel)
-                    .style(move |_t, _s| {
-                        button::Style {
-                            text_color: if is_dark { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT },
-                            background: None,
-                            ..Default::default()
-                        }
-                    }),
-                {
-                    let is_valid = form.is_valid();
-                    let btn = button(text(submit_label).size(14).font(iced::font::Font { weight: iced::font::Weight::Semibold, ..Default::default() }));
-                    let btn = if is_valid { btn.on_press(Message::SubmitAdd) } else { btn };
-                    btn.padding([10, 24])
-                    .style(move |_t, _s| {
-                        if is_valid {
-                             button::Style {
-                                background: Some(theme::PRIMARY.into()),
-                                text_color: Color::WHITE,
-                                border: iced::border::Border { radius: 8.0.into(), ..Default::default() },
-                                ..Default::default()
-                            }
+                     pick_list(
+                        if form.available_employees.is_empty() { 
+                             std::borrow::Cow::Owned(MENTEES.iter().map(|s| s.to_string()).collect())
                         } else {
-                             button::Style {
-                                background: Some(if is_dark { Color::from_rgb(0.2, 0.2, 0.2) } else { Color::from_rgb(0.9, 0.9, 0.9) }.into()),
-                                text_color: if is_dark { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT },
-                                border: iced::border::Border { radius: 8.0.into(), ..Default::default() },
-                                ..Default::default()
-                            }
-                        }
+                             std::borrow::Cow::Borrowed(form.available_employees.as_slice())
+                        },
+                        None::<String>, 
+                        Message::MenteeSelected
+                     )
+                     .padding(12)
+                     .width(Length::Fill)
+                     .placeholder("Add mentee...")
+                     .style(move |t, s| theme::pick_list_style(t, s, is_dark))
+                ],
+                // Chips for selected mentees
+                row(
+                    form.mentee.iter().map(|m| {
+                        container(
+                            row![
+                                text(m).size(12),
+                                button(icon_x().size(12))
+                                    .on_press(Message::MenteeRemoved(m.clone()))
+                                    .style(button::text)
+                                    .padding(0)
+                            ].spacing(4).align_y(Alignment::Center)
+                        )
+                        .padding([4, 8])
+                        .style(move |_| container::Style {
+                            background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.05).into()),
+                            border: iced::border::Border { radius: 12.0.into(), ..Default::default() },
+                            ..Default::default()
+                        })
+                        .into()
                     })
-                }
-            ]
-            .spacing(12)
-            .align_y(Alignment::Center)
-        )
-        .width(Length::Fill)
-        .padding([24, 32])
-        .align_x(Alignment::End)
-        .style(move |_t: &Theme| container::Style {
-            background: Some(if is_dark { theme::SURFACE_DARK } else { theme::SURFACE_LIGHT }.into()),
-            border: iced::border::Border {
-                radius: iced::border::Radius { bottom_left: 16.0, bottom_right: 16.0, ..0.0.into() },
-                ..Default::default()
-            },
-            ..Default::default()
-        })
-    ]
-    .width(600);
+                ).spacing(4).wrap()
+            ].spacing(8).width(Length::Fill)
+        ].spacing(20),
 
-    overlay_container(content, is_dark)
+        // Fixed Days Selection
+        column![
+            text("Fixed Office Days").size(14).font(iced::font::Font { weight: iced::font::Weight::Bold, ..Default::default() }),
+            row![
+                day_toggle("Mon", form.attendance[0], 0, is_dark),
+                day_toggle("Tue", form.attendance[1], 1, is_dark),
+                day_toggle("Wed", form.attendance[2], 2, is_dark),
+                day_toggle("Thu", form.attendance[3], 3, is_dark),
+                day_toggle("Fri", form.attendance[4], 4, is_dark),
+            ].spacing(12)
+        ].spacing(8),
+
+        // Action Buttons
+        row![
+            Space::new().width(Length::Fill),
+            button(text("Cancel").size(14).font(iced::font::Font { weight: iced::font::Weight::Semibold, ..Default::default() }))
+                .on_press(Message::Cancel)
+                .padding([12, 24])
+                .style(move |_t, _s| {
+                    button::Style {
+                        text_color: if is_dark { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT },
+                        background: None,
+                        ..Default::default()
+                    }
+                }),
+            button(text(submit_label).size(14).font(iced::font::Font { weight: iced::font::Weight::Semibold, ..Default::default() }))
+                .on_press(if is_edit { Message::SubmitEdit(0) } else { Message::SubmitAdd }) // Index ignored for SubmitAdd
+                .padding([12, 24])
+                .style(move |_t, _s| {
+                     button::Style {
+                        background: Some(theme::PRIMARY.into()),
+                        text_color: Color::WHITE,
+                        border: iced::border::Border { radius: 8.0.into(), ..Default::default() },
+                        ..Default::default()
+                    }
+                })
+        ]
+        .spacing(12)
+        .align_y(Alignment::Center)
+        .width(Length::Fill)
+    ]
+    .spacing(24)
+    .padding([24, 32]);
+
+    let card = modal_card(content, 600.0, is_dark);
+    backdrop(card)
+}
+
+fn day_toggle<'a>(label: &'a str, status: AttendanceStatus, idx: usize, is_dark: bool) -> Element<'a, Message> {
+    let (bg, text_color) = match status {
+        AttendanceStatus::Office => (theme::PRIMARY, Color::WHITE),
+        AttendanceStatus::Remote => (if is_dark { theme::GRAY_800 } else { theme::GRAY_100 }, if is_dark { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT }), // Should be NA ideally for unselected
+        AttendanceStatus::NA => (if is_dark { theme::GRAY_800 } else { theme::GRAY_100 }, if is_dark { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT }),
+    };
+
+    // If Remote, we treat it as unselected in this form context (since we are selecting fixed OFFICE days).
+    // Actually, form logic: toggle between Office and NA (or Remote).
+    // The message handler logic: ToggleDay toggles status.
+
+    let is_selected = status == AttendanceStatus::Office;
+    let (bg, text_color) = if is_selected {
+        (theme::PRIMARY, Color::WHITE)
+    } else {
+        (if is_dark { theme::GRAY_800 } else { theme::GRAY_100 }, if is_dark { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT })
+    };
+
+    button(
+        container(text(label).size(14))
+            .width(Length::Fill)
+            .align_x(Alignment::Center)
+    )
+    .on_press(Message::ToggleDay(idx))
+    .width(60)
+    .padding(10)
+    .style(move |_t, _s| {
+        button::Style {
+            background: Some(iced::Background::Color(bg)),
+            text_color,
+            border: iced::border::Border { radius: 8.0.into(), ..Default::default() },
+            ..Default::default()
+        }
+    })
+    .into()
 }
 
 fn delete_confirmation_view<'a>(idx: usize, is_dark: bool) -> Element<'a, Message> {
     let content = column![
-         row![
+            row![
                 container(
-                    text("⚠️") 
-                        .size(20)
+                    icon_trash_2()
+                        .size(24)
+                        .style(move |_| text::Style { color: Some(Color::from_rgb(0.8, 0.2, 0.2)) })
                 )
-                .padding(10)
+                .padding(12)
                 .style(move |_| container::Style {
-                    background: Some(Color::from_rgba(0.9, 0.2, 0.2, 0.1).into()),
+                    background: Some(Color::from_rgba(0.8, 0.2, 0.2, 0.1).into()),
                     border: iced::border::Border {
                         radius: 12.0.into(),
                         ..Default::default()
@@ -981,37 +1009,43 @@ fn delete_confirmation_view<'a>(idx: usize, is_dark: bool) -> Element<'a, Messag
             },
             ..Default::default()
         })
-    ].width(500);
+    ];
 
-    overlay_container(content, is_dark)
+    let card = modal_card(content, 500.0, is_dark);
+    backdrop(card)
 }
 
-fn overlay_container<'a>(content: impl Into<Element<'a, Message>>, is_dark: bool) -> Element<'a, Message> {
-    container(
-        container(content)
-            .style(move |_t: &Theme| container::Style {
-                background: Some(if is_dark { theme::SURFACE_DARK } else { theme::SURFACE_LIGHT }.into()),
-                border: iced::border::Border {
-                    radius: 16.0.into(),
-                    ..Default::default()
-                },
-                shadow: iced::Shadow {
-                    color: Color::from_rgba(0.0, 0.0, 0.0, 0.5),
-                    offset: iced::Vector::new(0.0, 10.0),
-                    blur_radius: 30.0,
-                },
+fn modal_card<'a>(content: impl Into<Element<'a, Message>>, max_width: f32, is_dark: bool) -> Element<'a, Message> {
+    container(content)
+        .width(Length::Fill)
+        .max_width(max_width)
+        .style(move |_t: &Theme| container::Style {
+            background: Some(if is_dark { theme::SURFACE_DARK } else { theme::SURFACE_LIGHT }.into()),
+            border: iced::border::Border {
+                radius: 16.0.into(),
                 ..Default::default()
-            })
-    )
-    .width(Length::Fill)
-    .height(Length::Fill)
-    .center_x(Length::Fill)
-    .center_y(Length::Fill)
-    .style(|_| container::Style {
-        background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.5).into()),
-        ..Default::default()
-    })
-    .into()
+            },
+            shadow: iced::Shadow {
+                color: Color::from_rgba(0.0, 0.0, 0.0, 0.5),
+                offset: iced::Vector::new(0.0, 10.0),
+                blur_radius: 30.0,
+            },
+            ..Default::default()
+        })
+        .into()
+}
+
+fn backdrop<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
+    container(content)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .align_x(Alignment::Center)
+        .align_y(Alignment::Center)
+        .style(|_| container::Style {
+            background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.5).into()),
+            ..Default::default()
+        })
+        .into()
 }
 
 fn input_group<'a>(label: &'a str, input: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
@@ -1024,4 +1058,130 @@ fn input_group<'a>(label: &'a str, input: impl Into<Element<'a, Message>>) -> El
     .into()
 }
 
+fn settings_view<'a>(is_dark: bool) -> Element<'a, Message> {
+    let header = row![
+        row![
+            container(
+                icon_settings()
+                    .size(20)
+                    .style(move |_| text::Style { color: Some(theme::PRIMARY) })
+            )
+            .padding(10)
+            .style(move |_| container::Style {
+                background: Some(Color::from_rgba(0.196, 0.505, 0.498, 0.1).into()),
+                border: iced::border::Border {
+                    radius: 12.0.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }),
+            text("Settings")
+                .size(18)
+                .font(iced::font::Font { weight: iced::font::Weight::Semibold, ..Default::default() }),
+        ].spacing(12).align_y(Alignment::Center),
+        Space::new().width(Length::Fill),
+        button(icon_x().size(20).style(move |_| text::Style { color: Some(if is_dark { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT }) }))
+            .on_press(Message::Close)
+            .style(move |_t, _s| button::Style {
+                background: None,
+                ..Default::default()
+            })
+    ]
+    .spacing(12)
+    .align_y(Alignment::Center)
+    .width(Length::Fill);
 
+    let content = column![
+        header,
+        column![
+            settings_button("Reset Application", "Clear all data and start fresh", Message::ResetApp, is_dark, true),
+            settings_button("Reset Schedules", "Clear all generated schedules", Message::ResetSchedules, is_dark, true),
+            settings_button("Reset Employees", "Remove all employees", Message::ResetEmployees, is_dark, true),
+        ].spacing(12)
+    ]
+    .spacing(24)
+    .padding([24, 32]);
+
+    let card = modal_card(content, 600.0, is_dark);
+    backdrop(card)
+}
+
+fn settings_button<'a>(
+    title: &'a str,
+    description: &'a str,
+    message: Message,
+    is_dark: bool,
+    is_danger: bool
+) -> Element<'a, Message> {
+    button(
+        row![
+            column![
+                text(title).size(16).font(iced::font::Font { weight: iced::font::Weight::Semibold, ..Default::default() }),
+                text(description).size(12).style(move |_| text::Style { color: Some(if is_dark { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT }) })
+            ].spacing(4),
+            Space::new().width(Length::Fill),
+            icon_trash_2().size(18).style(move |_| text::Style { color: Some(if is_danger { theme::ERROR } else { if is_dark { theme::TEXT_DARK } else { theme::TEXT_LIGHT } }) })
+        ]
+        .align_y(Alignment::Center)
+        .padding(12)
+    )
+    .on_press(message)
+    .width(Length::Fill)
+    .style(move |_, status| {
+        let bg = if status == button::Status::Hovered {
+             if is_dark { theme::GRAY_800 } else { theme::GRAY_50 }
+        } else {
+             Color::TRANSPARENT
+        };
+        button::Style {
+            background: Some(bg.into()),
+            border: iced::border::Border {
+                radius: 8.0.into(),
+                width: 1.0,
+                color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
+            },
+            ..button::Style::default()
+        }
+    })
+    .into()
+}
+
+fn confirm_reset_view<'a>(
+    title: &'a str,
+    description: &'a str,
+    confirm_msg: Message,
+    is_dark: bool
+) -> Element<'a, Message> {
+    let content = column![
+        text(title).size(20).font(iced::font::Font { weight: iced::font::Weight::Bold, ..Default::default() }),
+        text(description).size(14).style(move |_| text::Style { color: Some(if is_dark { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT }) }),
+        row![
+            button(text("Cancel").size(14).font(iced::font::Font { weight: iced::font::Weight::Semibold, ..Default::default() }))
+                .on_press(Message::Close)
+                .padding([10, 24])
+                .style(move |_t, _s| {
+                    button::Style {
+                        text_color: if is_dark { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT },
+                        background: None,
+                        ..Default::default()
+                    }
+                }),
+            button(text("Confirm Reset").size(14).font(iced::font::Font { weight: iced::font::Weight::Semibold, ..Default::default() }))
+                .on_press(confirm_msg)
+                .padding([10, 24])
+                .style(move |_t, _s| {
+                     button::Style {
+                        background: Some(theme::ERROR.into()),
+                        text_color: Color::WHITE,
+                        border: iced::border::Border { radius: 8.0.into(), ..Default::default() },
+                        ..Default::default()
+                    }
+                })
+        ].spacing(12).align_y(Alignment::Center)
+    ]
+    .spacing(20)
+    .padding(24);
+
+    let card = modal_card(content, 400.0, is_dark);
+    backdrop(card)
+}

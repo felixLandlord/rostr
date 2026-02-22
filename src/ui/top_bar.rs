@@ -2,7 +2,7 @@ use crate::ui::theme::*;
 use iced::widget::{Space, button, column, container, row, text, text_input, tooltip};
 use iced::{Alignment, Border, Color, Element, Length, Padding, Theme};
 use lucide_icons::iced::{
-    icon_bell, icon_calendar, icon_chevron_left, icon_chevron_right, icon_search, icon_user,
+    icon_bell, icon_calendar, icon_chevron_left, icon_chevron_right, icon_search, icon_settings,
 };
 
 pub struct TopBar;
@@ -13,7 +13,7 @@ pub enum Message {
     NextDate,
     SearchChanged(String),
     NotificationPressed,
-    ProfilePressed,
+    SettingsPressed,
     ToggleTheme,
 }
 
@@ -200,31 +200,29 @@ impl TopBar {
                 .style(container::rounded_box),
                 tooltip(
                     button(
-                        container(icon_user().size(20).color(muted_color))
+                        container(icon_settings().size(20).color(muted_color))
                             .width(40)
                             .height(40)
                             .align_x(Alignment::Center)
                             .align_y(Alignment::Center)
                     )
-                    .on_press(Message::ProfilePressed)
+                    .on_press(Message::SettingsPressed)
                     .style(move |_, status| {
-                        let bg = if is_dark { GRAY_800 } else { GRAY_50 };
-                        let b_color = if status == button::Status::Hovered {
-                            PRIMARY
+                        let bg = if status == button::Status::Hovered {
+                            if is_dark { GRAY_800 } else { GRAY_50 }
                         } else {
-                            border_color
+                            Color::TRANSPARENT
                         };
                         button::Style {
                             background: Some(bg.into()),
                             border: Border {
                                 radius: 20.0.into(),
-                                color: b_color,
-                                width: 1.0,
+                                ..Border::default()
                             },
                             ..button::Style::default()
                         }
                     }),
-                    "Profile Settings",
+                    "Settings",
                     tooltip::Position::Bottom
                 )
                 .gap(8)

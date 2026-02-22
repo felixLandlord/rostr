@@ -114,6 +114,11 @@ impl ScheduleRepository {
         Ok(())
     }
 
+    pub fn delete_all(conn: &Connection) -> Result<()> {
+        conn.execute("DELETE FROM schedules", [])?;
+        Ok(())
+    }
+
     pub fn find_all(conn: &Connection) -> Result<Vec<MonthlySchedule>> {
         let mut stmt = conn.prepare(
             "SELECT schedule_data FROM schedules

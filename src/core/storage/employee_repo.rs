@@ -64,6 +64,11 @@ impl EmployeeRepository {
         Ok(())
     }
 
+    pub fn delete_all(conn: &Connection) -> Result<()> {
+        conn.execute("DELETE FROM employees", [])?;
+        Ok(())
+    }
+
     pub fn find_by_id(conn: &Connection, id: i32) -> Result<Option<Employee>> {
         let mut stmt = conn.prepare(
             "SELECT id, name, sex, role, required_days, fixed_days, is_mentor, is_mentee, mentor_id
