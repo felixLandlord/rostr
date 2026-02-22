@@ -56,6 +56,8 @@ struct RostrApp {
     database: Option<Database>, // Option because it might fail to init
     current_schedule: Option<MonthlySchedule>,
     is_locked: bool,
+    filter_open: bool,
+    selected_days: Vec<Weekday>,
 }
 
 impl RostrApp {
@@ -74,6 +76,8 @@ impl RostrApp {
             database: None,
             current_schedule: None,
             is_locked: false,
+            filter_open: false,
+            selected_days: Vec::new(),
         };
 
         let mut commands = Vec::new();
@@ -173,6 +177,26 @@ impl RostrApp {
                     
                     if let Some(schedule) = &self.current_schedule {
                         apply_schedule_to_ui(&mut ui_employees, schedule);
+                    }
+
+                    if !self.selected_days.is_empty() {
+                         ui_employees.retain(|emp| {
+                             self.selected_days.iter().any(|&day| {
+                                 let day_idx = match day {
+                                     Weekday::Monday => 0,
+                                     Weekday::Tuesday => 1,
+                                     Weekday::Wednesday => 2,
+                                     Weekday::Thursday => 3,
+                                     Weekday::Friday => 4,
+                                     _ => 99,
+                                 };
+                                 if day_idx < 5 {
+                                     emp.attendance[day_idx] == AttendanceStatus::Office
+                                 } else {
+                                     false
+                                 }
+                             })
+                         });
                     }
 
                     self.attendance_table.employees = ui_employees;
@@ -520,6 +544,17 @@ impl RostrApp {
                 return self.attendance_table.update(msg).map(Message::AttendanceTable);
             }
             Message::TopBar(top_bar_msg) => match top_bar_msg {
+                TopBarMessage::ToggleFilter => {
+                    self.filter_open = !self.filter_open;
+                },
+                TopBarMessage::FilterChanged(day) => {
+                    if self.selected_days.contains(&day) {
+                        self.selected_days.retain(|&d| d != day);
+                    } else {
+                        self.selected_days.push(day);
+                    }
+                    self.refresh_employees();
+                },
                 TopBarMessage::SearchChanged(query) => {
                     self.search_query = query;
                     self.refresh_employees();
@@ -907,6 +942,8 @@ impl RostrApp {
             format!("Monthly Attendance Overview • {} Active Employees", employee_count),
             &self.search_query,
             self.is_dark,
+            self.filter_open,
+            &self.selected_days,
         )
         .map(Message::TopBar);
 

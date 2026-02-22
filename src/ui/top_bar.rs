@@ -1,8 +1,9 @@
 use crate::ui::theme::*;
+use crate::core::models::Weekday;
 use iced::widget::{Space, button, column, container, row, text, text_input, tooltip};
 use iced::{Alignment, Border, Color, Element, Length, Padding, Theme};
 use lucide_icons::iced::{
-    icon_bell, icon_calendar, icon_chevron_left, icon_chevron_right, icon_search, icon_settings,
+    icon_bell, icon_calendar, icon_chevron_left, icon_chevron_right, icon_search, icon_settings, icon_list_filter,
 };
 
 pub struct TopBar;
@@ -15,6 +16,8 @@ pub enum Message {
     NotificationPressed,
     SettingsPressed,
     ToggleTheme,
+    ToggleFilter,
+    FilterChanged(Weekday),
 }
 
 impl TopBar {
@@ -23,6 +26,8 @@ impl TopBar {
         sub_text: String,
         search_value: &'a str,
         is_dark: bool,
+        filter_open: bool,
+        selected_days: &'a [Weekday],
     ) -> Element<'a, Message> {
         let border_color = if is_dark { BORDER_DARK } else { BORDER_LIGHT };
         let text_color = if is_dark { TEXT_DARK } else { TEXT_LIGHT };
@@ -130,7 +135,70 @@ impl TopBar {
         .spacing(12)
         .align_y(Alignment::Center);
 
-        // Right Section: Search Bar
+        // Right Section: Search Bar & Filter
+        let filter_icon_color = if filter_open || !selected_days.is_empty() { PRIMARY } else { muted_color };
+        let filter_btn = tooltip(
+            button(container(icon_list_filter().size(18).color(filter_icon_color)).padding(6))
+                .on_press(Message::ToggleFilter)
+                .style(move |_, status| {
+                    let bg = if status == button::Status::Hovered {
+                        if is_dark { GRAY_800 } else { GRAY_50 }
+                    } else {
+                        Color::TRANSPARENT
+                    };
+                    button::Style {
+                        background: Some(bg.into()),
+                        border: Border {
+                            radius: 8.0.into(),
+                            ..Border::default()
+                        },
+                        ..button::Style::default()
+                    }
+                }),
+            "Filter by Day",
+            tooltip::Position::Bottom
+        )
+        .style(container::rounded_box);
+
+        let day_filters: Element<'a, Message> = if filter_open {
+            let days = [Weekday::Monday, Weekday::Tuesday, Weekday::Wednesday, Weekday::Thursday, Weekday::Friday];
+            let day_buttons = days.iter().map(|&day| {
+                let is_selected = selected_days.contains(&day);
+                let label = match day {
+                    Weekday::Monday => "M",
+                    Weekday::Tuesday => "T",
+                    Weekday::Wednesday => "W",
+                    Weekday::Thursday => "T",
+                    Weekday::Friday => "F",
+                    _ => "",
+                };
+                
+                button(
+                    text(label).size(12).style(move |_| text::Style {
+                        color: Some(if is_selected { Color::WHITE } else { muted_color })
+                    })
+                )
+                .on_press(Message::FilterChanged(day))
+                .padding([4, 8])
+                .style(move |_, _| {
+                    button::Style {
+                        background: Some(if is_selected { PRIMARY } else { if is_dark { SURFACE_DARK } else { GRAY_50 } }.into()),
+                        border: Border {
+                            radius: 4.0.into(),
+                            color: if is_selected { PRIMARY } else { border_color },
+                            width: 1.0,
+                        },
+                        ..button::Style::default()
+                    }
+                })
+                .into()
+            });
+            
+            row(day_buttons).spacing(4).align_y(Alignment::Center).into()
+        } else {
+            row![].into()
+        };
+
         let search_bar = container(
             row![
                 icon_search().size(16).color(muted_color),
@@ -172,7 +240,7 @@ impl TopBar {
             });
 
         let right_section = row![
-            search_bar,
+            row![filter_btn, day_filters, search_bar].spacing(12).align_y(Alignment::Center),
             row![
                 separator,
                 tooltip(
