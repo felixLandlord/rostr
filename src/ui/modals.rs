@@ -267,7 +267,7 @@ fn table_view<'a>(title: &'a str, headers: Vec<String>, rows: Vec<Vec<String>>, 
         container(
             column![
                 header_row,
-                container(iced::widget::Space::new().width(Length::Fill).height(1)).style(move |_| container::Style { background: Some(if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT }.into()), ..Default::default() }),
+                container(iced::widget::Space::new().width(Length::Fill).height(1)).style(move |_| container::Style { background: Some(if is_dark { theme::TABLE_BORDER_DARK } else { theme::TABLE_BORDER_LIGHT }.into()), ..Default::default() }),
                 content_col
             ]
         )
@@ -514,7 +514,7 @@ fn general_report_view<'a>(data: &'a ReportData, is_dark: bool) -> Element<'a, M
         container(header).padding(Padding { top: 24.0, right: 32.0, bottom: 0.0, left: 32.0 }),
         container(iced::widget::Space::new().width(Length::Fill).height(Length::Fixed(1.0)))
             .style(move |_t: &Theme| container::Style {
-                background: Some(if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT }.into()),
+                background: Some(if is_dark { theme::TABLE_BORDER_DARK } else { theme::TABLE_BORDER_LIGHT }.into()),
                 ..Default::default()
             })
             .padding(Padding { top: 0.0, right: 32.0, bottom: 0.0, left: 32.0 }),
@@ -675,7 +675,7 @@ fn employee_report_view<'a>(employee: &'a Employee, date_str: &'a str, is_dark: 
         column![
             header,
             container(iced::widget::Space::new().width(Length::Fill).height(Length::Fixed(1.0))).style(move |_t: &Theme| container::Style {
-                background: Some(if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT }.into()),
+                background: Some(if is_dark { theme::TABLE_BORDER_DARK } else { theme::TABLE_BORDER_LIGHT }.into()),
                 ..Default::default()
             }),
             schedule_items.spacing(12)

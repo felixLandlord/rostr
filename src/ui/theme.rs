@@ -13,6 +13,9 @@ pub const SURFACE_DARK: Color = Color::from_rgb(0.141, 0.161, 0.180); // #24292e
 pub const BORDER_LIGHT: Color = Color::from_rgb(0.898, 0.906, 0.922); // #e5e7eb
 pub const BORDER_DARK: Color = Color::from_rgb(0.216, 0.255, 0.318); // #374151
 
+pub const TABLE_BORDER_LIGHT: Color = Color::from_rgb(0.949, 0.949, 0.957); // #f2f2f4
+pub const TABLE_BORDER_DARK: Color = Color::from_rgb(0.176, 0.196, 0.224); // #2d3239
+
 pub const TEXT_LIGHT: Color = Color::from_rgb(0.075, 0.086, 0.086); // #131616
 pub const TEXT_DARK: Color = Color::from_rgb(0.945, 0.945, 0.945); // #f1f1f1
 
