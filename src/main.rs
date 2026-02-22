@@ -21,7 +21,8 @@ use std::str::FromStr;
 #[derive(Debug, Clone)]
 pub enum Message {
     Tick,
-    FileActionComplete(Result<(), String>),
+    ImportComplete(Result<String, String>), // Success message or Error message
+    ExportComplete(Result<String, String>), // Success message or Error message
     ToastTimeout(u64),
     CloseToast(u64),
     ActionBar(ActionBarMessage),
@@ -322,9 +323,16 @@ impl RostrApp {
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Tick => {},
-            Message::FileActionComplete(result) => {
-                if let Err(e) = result {
-                    return self.show_toast("File Action Failed".to_string(), e, Status::Error);
+            Message::ImportComplete(result) => {
+                match result {
+                    Ok(msg) => return self.show_toast("Import Successful".to_string(), msg, Status::Import),
+                    Err(e) => return self.show_toast("Import Failed".to_string(), e, Status::Error),
+                }
+            },
+            Message::ExportComplete(result) => {
+                match result {
+                    Ok(msg) => return self.show_toast("Export Successful".to_string(), msg, Status::Export),
+                    Err(e) => return self.show_toast("Export Failed".to_string(), e, Status::Error),
                 }
             },
             Message::ToastTimeout(id) => {
@@ -476,7 +484,7 @@ impl RostrApp {
                                 // Update UI
                                 apply_schedule_to_ui(&mut self.attendance_table.employees, &schedule);
                                 
-                                return self.show_toast("Schedule Generated".to_string(), "New schedule has been generated (not saved yet).".to_string(), Status::Success);
+                                return self.show_toast("Schedule Generated".to_string(), "New schedule has been generated (not saved yet).".to_string(), Status::Generate);
                             }
                         }
                     }
@@ -522,25 +530,27 @@ impl RostrApp {
 
                     if changed {
                         if self.current_schedule.is_some() {
-                            return self.show_toast("Changes Undone".to_string(), "Reverted to the last saved schedule.".to_string(), Status::Success);
+                            return self.show_toast("Changes Undone".to_string(), "Reverted to the last saved schedule.".to_string(), Status::Undo);
                         } else {
-                            return self.show_toast("Changes Undone".to_string(), "Reverted to empty state (no saved schedule).".to_string(), Status::Info);
+                            return self.show_toast("Changes Undone".to_string(), "Reverted to empty state (no saved schedule).".to_string(), Status::Undo);
                         }
                     }
                 }
                 ActionBarMessage::Import => {
                     return Task::perform(async {
                         let _ = rfd::AsyncFileDialog::new().pick_file().await;
-                        Ok::<(), String>(())
-                    }, Message::FileActionComplete);
+                        Ok("Data imported successfully.".to_string())
+                    }, Message::ImportComplete);
                 }
                 ActionBarMessage::Export => {
                     if let Some(schedule) = &self.current_schedule {
                         match generate_xlsx_data(schedule) {
                             Ok((filename, data)) => {
                                 return Task::perform(async move {
-                                    save_xlsx_with_dialog(filename, data).await.map_err(|e| e.to_string())
-                                }, Message::FileActionComplete);
+                                    save_xlsx_with_dialog(filename, data).await
+                                        .map(|_| "The file is ready in your downloads.".to_string())
+                                        .map_err(|e| e.to_string())
+                                }, Message::ExportComplete);
                             }
                             Err(e) => {
                                 return self.show_toast("Export Error".to_string(), e.to_string(), Status::Error);
@@ -631,7 +641,7 @@ impl RostrApp {
                          self.attendance_table.selected_employee = None;
                          self.refresh_employees();
                          self.modal = Modal::None;
-                         return self.show_toast("App Reset".to_string(), "All data has been cleared.".to_string(), Status::Success);
+                         return self.show_toast("App Reset".to_string(), "All data has been cleared.".to_string(), Status::Delete);
                      }
                 }
                 ModalMessage::ConfirmResetSchedulesAction => {
@@ -643,7 +653,7 @@ impl RostrApp {
                              self.current_schedule = None;
                              self.refresh_employees();
                              self.modal = Modal::None;
-                             return self.show_toast("Schedules Reset".to_string(), "All schedules have been cleared.".to_string(), Status::Success);
+                             return self.show_toast("Schedules Reset".to_string(), "All schedules have been cleared.".to_string(), Status::Delete);
                          }
                      }
                 }
@@ -657,7 +667,7 @@ impl RostrApp {
                              self.attendance_table.selected_employee = None;
                              self.refresh_employees();
                              self.modal = Modal::None;
-                             return self.show_toast("Employees Reset".to_string(), "All employees have been deleted.".to_string(), Status::Success);
+                             return self.show_toast("Employees Reset".to_string(), "All employees have been deleted.".to_string(), Status::Delete);
                          }
                      }
                 }
@@ -742,7 +752,7 @@ impl RostrApp {
 
                                         self.refresh_employees();
                                         self.modal = Modal::None;
-                                        return self.show_toast("Employee Added".to_string(), format!("{} has been successfully added.", form.name), Status::Success);
+                                        return self.show_toast("Employee Added".to_string(), format!("{} has been successfully added.", form.name), Status::Add);
                                     }
                                     Err(e) => {
                                         return self.show_toast("Error".to_string(), e.to_string(), Status::Error);
@@ -834,7 +844,7 @@ impl RostrApp {
 
                                                 self.refresh_employees();
                                                 self.modal = Modal::None;
-                                                return self.show_toast("Employee Updated".to_string(), format!("{}'s details have been updated.", core_emp.name), Status::Success);
+                                                return self.show_toast("Employee Updated".to_string(), format!("{}'s details have been updated.", core_emp.name), Status::Edit);
                                             }
                                             Err(e) => {
                                                 return self.show_toast("Error".to_string(), e.to_string(), Status::Error);
@@ -860,7 +870,7 @@ impl RostrApp {
                                         self.refresh_employees();
                                         self.attendance_table.selected_employee = None;
                                         self.modal = Modal::None;
-                                        return self.show_toast("Employee Deleted".to_string(), format!("{} has been removed.", name), Status::Success);
+                                        return self.show_toast("Employee Deleted".to_string(), format!("{} has been removed.", name), Status::Delete);
                                     }
                                     Err(e) => {
                                         return self.show_toast("Error".to_string(), e.to_string(), Status::Error);

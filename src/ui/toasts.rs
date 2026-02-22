@@ -1,7 +1,10 @@
-use iced::widget::{button, column, container, row, text};
-use iced::{Alignment, Color, Element, Length, Theme};
+use iced::widget::{button, column, container, row, text, Space};
+use iced::{Alignment, Color, Element, Length, Theme, Border, Shadow, Vector};
 use crate::ui::theme;
-use lucide_icons::iced::{icon_check, icon_info, icon_triangle_alert, icon_x};
+use lucide_icons::iced::{
+    icon_check, icon_info, icon_triangle_alert, icon_x, 
+    icon_upload, icon_download, icon_pencil, icon_trash_2, icon_undo_2, icon_sparkles
+};
 use std::time::Instant;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -9,6 +12,14 @@ pub enum Status {
     Success,
     Error,
     Info,
+    Warning,
+    Import,
+    Export,
+    Add,
+    Edit,
+    Delete,
+    Undo,
+    Generate,
 }
 
 #[derive(Debug, Clone)]
@@ -30,7 +41,8 @@ where
         })
     )
     .spacing(10)
-    .align_x(Alignment::End);
+    .align_x(Alignment::End)
+    .height(Length::Shrink);
 
     container(content)
         .padding(20)
@@ -46,9 +58,17 @@ where
     Message: Clone + 'a,
 {
     let (icon, base_color) = match toast.status {
-        Status::Success => (icon_check(), Color::from_rgb(0.13, 0.65, 0.35)), // Green
-        Status::Error => (icon_triangle_alert(), Color::from_rgb(0.85, 0.25, 0.25)), // Red
-        Status::Info => (icon_info(), theme::PRIMARY), // Primary
+        Status::Success => (icon_check(), theme::TOAST_SUCCESS),
+        Status::Error => (icon_triangle_alert(), theme::TOAST_ERROR),
+        Status::Info => (icon_info(), theme::TOAST_INFO),
+        Status::Warning => (icon_triangle_alert(), theme::TOAST_WARNING),
+        Status::Import => (icon_upload(), theme::TOAST_SUCCESS),
+        Status::Export => (icon_download(), theme::TOAST_INFO),
+        Status::Add => (icon_check(), theme::TOAST_SUCCESS),
+        Status::Edit => (icon_pencil(), theme::TOAST_INFO),
+        Status::Delete => (icon_trash_2(), theme::TOAST_ERROR),
+        Status::Undo => (icon_undo_2(), theme::TOAST_WARNING),
+        Status::Generate => (icon_sparkles(), theme::TOAST_PRIMARY),
     };
 
     let elapsed = toast.created_at.elapsed().as_millis() as f32;
@@ -66,67 +86,90 @@ where
 
     let content = container(
         row![
-            // Icon container
-            container(
-                icon
-                    .size(20)
-                    .style(move |_| text::Style { color: Some(apply_opacity(Color::WHITE)) })
-            )
-            .padding(8)
-            .style(move |_| container::Style {
-                background: Some(apply_opacity(base_color).into()),
-                border: iced::border::Border {
-                    radius: 8.0.into(),
+            // Left colored strip
+            container(Space::new())
+                .width(Length::Fixed(4.0))
+                .height(Length::Fill)
+                .style(move |_| container::Style {
+                    background: Some(apply_opacity(base_color).into()),
                     ..Default::default()
-                },
-                ..Default::default()
-            }),
-            
-            // Text content
-            column![
-                text(&toast.title)
-                    .size(14)
-                    .font(iced::font::Font { weight: iced::font::Weight::Semibold, ..Default::default() })
-                    .style(move |t: &Theme| text::Style { 
-                        color: Some(apply_opacity(if t.palette().background.r < 0.5 { theme::TEXT_DARK } else { theme::TEXT_LIGHT })) 
-                    }),
-                text(&toast.body)
-                    .size(12)
-                    .style(move |t: &Theme| text::Style { 
-                        color: Some(apply_opacity(if t.palette().background.r < 0.5 { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT })) 
-                    })
-            ].spacing(2).width(Length::Fill),
+                }),
 
-            // Close button
-            button(
-                icon_x().size(16).style(move |t: &Theme| text::Style { 
-                     color: Some(apply_opacity(if t.palette().background.r < 0.5 { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT })) 
+            // Main content
+            row![
+                // Icon container
+                container(
+                    icon
+                        .size(20)
+                        .style(move |_| text::Style { color: Some(apply_opacity(base_color)) })
+                )
+                .padding(8)
+                .style(move |_| container::Style {
+                    background: Some(apply_opacity(Color { a: 0.1, ..base_color }).into()),
+                    border: Border {
+                        radius: 20.0.into(), // Full circle
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                }),
+                
+                // Text content
+                column![
+                    text(&toast.title)
+                        .size(14)
+                        .font(iced::font::Font { weight: iced::font::Weight::Semibold, ..Default::default() })
+                        .style(move |t: &Theme| text::Style { 
+                            color: Some(apply_opacity(if t.palette().background.r < 0.5 { theme::TEXT_DARK } else { theme::TEXT_LIGHT })) 
+                        }),
+                    text(&toast.body)
+                        .size(12)
+                        .style(move |t: &Theme| text::Style { 
+                            color: Some(apply_opacity(if t.palette().background.r < 0.5 { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT })) 
+                        })
+                ].spacing(2).width(Length::Fill),
+
+                // Close button
+                button(
+                    icon_x().size(16).style(move |t: &Theme| text::Style { 
+                         color: Some(apply_opacity(if t.palette().background.r < 0.5 { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT })) 
+                    })
+                )
+                .on_press(on_close(toast.id))
+                .style(move |_t, status| {
+                    let text_c: Color = if status == button::Status::Hovered {
+                        apply_opacity(Color::from_rgb(0.4, 0.4, 0.4))
+                    } else {
+                        apply_opacity(Color::from_rgb(0.6, 0.6, 0.6))
+                    };
+                    button::Style {
+                        background: None,
+                        text_color: text_c,
+                        ..Default::default()
+                    }
                 })
-            )
-            .on_press(on_close(toast.id))
-            .style(move |_t, _s| button::Style {
-                background: None,
-                ..Default::default()
-            })
-            .padding(4)
+                .padding(4)
+            ]
+            .spacing(12)
+            .padding(12)
+            .align_y(Alignment::Center)
+            .width(Length::Fill)
         ]
-        .spacing(16)
-        .align_y(Alignment::Center)
     )
-    .padding(12)
-    .width(300)
+    .width(340)
+    .height(Length::Shrink)
+    .clip(true)
     .style(move |t: &Theme| {
         let is_dark = t.palette().background.r < 0.5;
         container::Style {
             background: Some(apply_opacity(if is_dark { theme::SURFACE_DARK } else { theme::SURFACE_LIGHT }).into()),
-            border: iced::border::Border {
+            border: Border {
                 radius: 12.0.into(),
                 width: 1.0,
                 color: apply_opacity(if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT }),
             },
-            shadow: iced::Shadow {
+            shadow: Shadow {
                 color: apply_opacity(Color::from_rgba(0.0, 0.0, 0.0, 0.1)),
-                offset: iced::Vector::new(0.0, 4.0),
+                offset: Vector::new(0.0, 4.0),
                 blur_radius: 12.0,
             },
             ..Default::default()

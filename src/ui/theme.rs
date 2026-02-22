@@ -28,6 +28,12 @@ pub const GRAY_800: Color = Color::from_rgb(0.122, 0.149, 0.192); // #1f2937
 
 pub const ERROR: Color = Color::from_rgb(0.937, 0.267, 0.267); // #ef4444
 
+pub const TOAST_SUCCESS: Color = Color::from_rgb(0.133, 0.773, 0.369); // #22c55e
+pub const TOAST_INFO: Color = Color::from_rgb(0.231, 0.510, 0.965); // #3b82f6
+pub const TOAST_ERROR: Color = Color::from_rgb(0.937, 0.267, 0.267); // #ef4444
+pub const TOAST_WARNING: Color = Color::from_rgb(0.961, 0.620, 0.043); // #f59e0b
+pub const TOAST_PRIMARY: Color = Color::from_rgb(0.075, 0.925, 0.898); // #13ece5
+
 pub fn text_input_style(_theme: &iced::Theme, status: text_input::Status, is_dark: bool) -> text_input::Style {
     let bg = if is_dark { SURFACE_DARK } else { SURFACE_LIGHT };
     let border_color = match status {
