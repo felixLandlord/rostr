@@ -14,6 +14,7 @@ pub struct Employee {
     pub is_mentor: bool,
     pub is_mentee: bool,
     pub mentor_id: Option<i32>,
+    pub deleted_at: Option<String>,
 }
 
 impl Employee {
@@ -37,6 +38,7 @@ impl Employee {
             is_mentor,
             is_mentee,
             mentor_id,
+            deleted_at: None,
         }
     }
 

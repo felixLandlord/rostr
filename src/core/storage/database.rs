@@ -47,6 +47,7 @@ impl Database {
                 mentor_id INTEGER,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                deleted_at DATETIME,
                 FOREIGN KEY (mentor_id) REFERENCES employees(id) ON DELETE SET NULL
             )",
             [],
@@ -64,6 +65,9 @@ impl Database {
             )",
             [],
         )?;
+
+        // Migration: Add deleted_at column if it doesn't exist (for existing DBs)
+        let _ = conn.execute("ALTER TABLE employees ADD COLUMN deleted_at DATETIME", []);
 
         conn.execute("CREATE INDEX IF NOT EXISTS idx_employees_name ON employees(name)", [])?;
         conn.execute("CREATE INDEX IF NOT EXISTS idx_schedules_year_month ON schedules(year, month)", [])?;

@@ -171,7 +171,7 @@ impl ActionBar {
         // Delete Employee (Red Ghost)
         let delete_btn = ghost_button(
             icon_trash_2(),
-            "Delete Employee",
+            "Remove Employee",
             if has_selection { Some(Message::DeleteEmployee) } else { None },
             is_dark,
             muted_color,

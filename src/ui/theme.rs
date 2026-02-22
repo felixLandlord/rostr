@@ -1,4 +1,4 @@
-use iced::widget::{pick_list, text_input, button};
+use iced::widget::{pick_list, text_input};
 use iced::{Color, Border};
 
 pub const PRIMARY: Color = Color::from_rgb(0.196, 0.505, 0.498); // #32817f
@@ -81,24 +81,6 @@ pub fn pick_list_style(_theme: &iced::Theme, status: pick_list::Status, is_dark:
     }
 }
 
-pub fn primary_button_style(_theme: &iced::Theme) -> button::Style {
-    button::Style {
-        background: Some(PRIMARY.into()),
-        text_color: Color::WHITE,
-        border: Border { radius: 8.0.into(), ..Default::default() },
-        ..Default::default()
-    }
-}
 
-pub fn secondary_button_style(_theme: &iced::Theme, is_dark: bool) -> button::Style {
-    let bg = if is_dark { SURFACE_DARK } else { SURFACE_LIGHT };
-    let text_color = if is_dark { TEXT_MUTED_DARK } else { TEXT_MUTED_LIGHT };
-    let border_color = if is_dark { BORDER_DARK } else { BORDER_LIGHT };
-    
-    button::Style {
-        background: Some(bg.into()),
-        text_color,
-        border: Border { radius: 8.0.into(), width: 1.0, color: border_color },
-        ..Default::default()
-    }
-}
+
+

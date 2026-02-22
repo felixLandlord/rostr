@@ -60,7 +60,10 @@ impl EmployeeRepository {
     }
 
     pub fn delete(conn: &Connection, id: i32) -> Result<()> {
-        conn.execute("DELETE FROM employees WHERE id = ?1", params![id])?;
+        conn.execute(
+            "UPDATE employees SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?1",
+            params![id]
+        )?;
         Ok(())
     }
 
@@ -71,8 +74,8 @@ impl EmployeeRepository {
 
     pub fn find_by_id(conn: &Connection, id: i32) -> Result<Option<Employee>> {
         let mut stmt = conn.prepare(
-            "SELECT id, name, sex, role, required_days, fixed_days, is_mentor, is_mentee, mentor_id
-             FROM employees WHERE id = ?1",
+            "SELECT id, name, sex, role, required_days, fixed_days, is_mentor, is_mentee, mentor_id, deleted_at
+             FROM employees WHERE id = ?1 AND deleted_at IS NULL",
         )?;
 
         let employee = stmt.query_row(params![id], |row| {
@@ -85,6 +88,7 @@ impl EmployeeRepository {
             let is_mentor: bool = row.get(6)?;
             let is_mentee: bool = row.get(7)?;
             let mentor_id: Option<i32> = row.get(8)?;
+            let deleted_at: Option<String> = row.get(9)?;
 
             let sex = Sex::from_str(&sex_str).map_err(|e| rusqlite::Error::ToSqlConversionFailure(e.into()))?;
             let role = Role::from_str(&role_str).map_err(|e| rusqlite::Error::ToSqlConversionFailure(e.into()))?;
@@ -100,6 +104,7 @@ impl EmployeeRepository {
                 is_mentor,
                 is_mentee,
                 mentor_id,
+                deleted_at,
             })
         }).optional()?;
 
@@ -108,8 +113,10 @@ impl EmployeeRepository {
 
     pub fn find_all(conn: &Connection) -> Result<Vec<Employee>> {
         let mut stmt = conn.prepare(
-            "SELECT id, name, sex, role, required_days, fixed_days, is_mentor, is_mentee, mentor_id
-             FROM employees ORDER BY name",
+            "SELECT id, name, sex, role, required_days, fixed_days, is_mentor, is_mentee, mentor_id, deleted_at
+             FROM employees 
+             WHERE deleted_at IS NULL
+             ORDER BY name",
         )?;
 
         let employee_iter = stmt.query_map([], |row| {
@@ -122,6 +129,7 @@ impl EmployeeRepository {
             let is_mentor: bool = row.get(6)?;
             let is_mentee: bool = row.get(7)?;
             let mentor_id: Option<i32> = row.get(8)?;
+            let deleted_at: Option<String> = row.get(9)?;
 
             let sex = Sex::from_str(&sex_str).map_err(|e| rusqlite::Error::ToSqlConversionFailure(e.into()))?;
             let role = Role::from_str(&role_str).map_err(|e| rusqlite::Error::ToSqlConversionFailure(e.into()))?;
@@ -137,6 +145,7 @@ impl EmployeeRepository {
                 is_mentor,
                 is_mentee,
                 mentor_id,
+                deleted_at,
             })
         })?;
 
@@ -149,9 +158,9 @@ impl EmployeeRepository {
 
     pub fn search(conn: &Connection, query: &str) -> Result<Vec<Employee>> {
         let mut stmt = conn.prepare(
-            "SELECT id, name, sex, role, required_days, fixed_days, is_mentor, is_mentee, mentor_id
+            "SELECT id, name, sex, role, required_days, fixed_days, is_mentor, is_mentee, mentor_id, deleted_at
              FROM employees
-             WHERE LOWER(name) LIKE ?1
+             WHERE LOWER(name) LIKE ?1 AND deleted_at IS NULL
              ORDER BY name",
         )?;
 
@@ -167,6 +176,7 @@ impl EmployeeRepository {
             let is_mentor: bool = row.get(6)?;
             let is_mentee: bool = row.get(7)?;
             let mentor_id: Option<i32> = row.get(8)?;
+            let deleted_at: Option<String> = row.get(9)?;
 
             let sex = Sex::from_str(&sex_str).map_err(|e| rusqlite::Error::ToSqlConversionFailure(e.into()))?;
             let role = Role::from_str(&role_str).map_err(|e| rusqlite::Error::ToSqlConversionFailure(e.into()))?;
@@ -182,6 +192,7 @@ impl EmployeeRepository {
                 is_mentor,
                 is_mentee,
                 mentor_id,
+                deleted_at,
             })
         })?;
 

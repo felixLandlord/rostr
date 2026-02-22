@@ -178,26 +178,39 @@ impl RostrApp {
                     
                     if let Some(schedule) = &self.current_schedule {
                         apply_schedule_to_ui(&mut ui_employees, schedule);
+                    } else {
+                        // If there is no schedule, newly added employees should show as NA or whatever default
+                        // But wait, if we are filtering by "Office" status (which selected_days implies), 
+                        // and new employees have NA status, they will be hidden if a filter is active!
                     }
 
                     if !self.selected_days.is_empty() {
-                         ui_employees.retain(|emp| {
-                             self.selected_days.iter().any(|&day| {
-                                 let day_idx = match day {
-                                     Weekday::Monday => 0,
-                                     Weekday::Tuesday => 1,
-                                     Weekday::Wednesday => 2,
-                                     Weekday::Thursday => 3,
-                                     Weekday::Friday => 4,
-                                     _ => 99,
-                                 };
-                                 if day_idx < 5 {
-                                     emp.attendance[day_idx] == AttendanceStatus::Office
-                                 } else {
-                                     false
-                                 }
-                             })
-                         });
+                        let days_indices: Vec<usize> = self.selected_days.iter().map(|&day| {
+                            match day {
+                                Weekday::Monday => 0,
+                                Weekday::Tuesday => 1,
+                                Weekday::Wednesday => 2,
+                                Weekday::Thursday => 3,
+                                Weekday::Friday => 4,
+                                _ => 99,
+                            }
+                        }).filter(|&idx| idx < 5).collect();
+
+                        ui_employees.retain(|emp| {
+                            days_indices.iter().any(|&day_idx| {
+                                let day_enum = match day_idx {
+                                    0 => Weekday::Monday,
+                                    1 => Weekday::Tuesday,
+                                    2 => Weekday::Wednesday,
+                                    3 => Weekday::Thursday,
+                                    _ => Weekday::Friday,
+                                };
+                                let is_fixed_on_day = emp.fixed_days.contains(&day_enum);
+                                
+                                emp.attendance[day_idx] == AttendanceStatus::Office || 
+                                (emp.attendance[day_idx] == AttendanceStatus::NA && is_fixed_on_day)
+                            })
+                        });
                     }
 
                     self.attendance_table.employees = ui_employees;
@@ -870,7 +883,7 @@ impl RostrApp {
                                         self.refresh_employees();
                                         self.attendance_table.selected_employee = None;
                                         self.modal = Modal::None;
-                                        return self.show_toast("Employee Deleted".to_string(), format!("{} has been removed.", name), Status::Delete);
+                                        return self.show_toast("Employee Removed".to_string(), format!("{} has been removed.", name), Status::Delete);
                                     }
                                     Err(e) => {
                                         return self.show_toast("Error".to_string(), e.to_string(), Status::Error);

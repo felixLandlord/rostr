@@ -1,8 +1,8 @@
 use iced::widget::{button, column, container, pick_list, row, text, text_input, scrollable, Space};
 use iced::{Alignment, Color, Element, Length, Padding, Theme};
 use lucide_icons::iced::{
-    icon_building_2, icon_calendar, icon_calendar_check_2, icon_chart_no_axes_column, icon_clipboard_list,
-    icon_house, icon_scale, icon_settings, icon_trash_2, icon_user_plus, icon_user_round_pen, icon_users, icon_x,
+    icon_calendar, icon_calendar_check_2, icon_chart_no_axes_column,
+    icon_settings, icon_trash_2, icon_user_plus, icon_user_round_pen, icon_x,
 };
 use crate::ui::theme;
 use crate::ui::attendance_table::{AttendanceStatus, Employee};
@@ -127,20 +127,7 @@ pub enum Message {
     ConfirmResetEmployeesAction,
 }
 
-const ROLES: &[&str] = &[
-    "UX Designer",
-    "Product Manager",
-    "Senior Developer",
-    "QA Engineer",
-    "Data Analyst",
-    "Frontend Dev",
-    "Backend Dev",
-];
-
-const SEX_OPTIONS: &[&str] = &["Male", "Female"];
-const DAYS_OPTIONS: &[u8] = &[1, 2, 3, 5];
-const MENTEES: &[&str] = &["None", "Alex Rivera", "Sam Chen", "Jordan Smith"];
-const MENTORS: &[&str] = &["None", "Sarah Jenkins", "Michael Ross", "Elena Rodriguez"];
+use crate::core::models::types::{Sex, Role, DAYS_OPTIONS};
 
 pub fn view<'a>(modal: &'a Modal, is_dark: bool) -> Element<'a, Message> {
     match modal {
@@ -769,37 +756,41 @@ fn form_view<'a>(
                 text_input("e.g. Sarah Jenkins", &form.name)
                     .on_input(Message::NameChanged)
                     .padding(12)
-                    .style(move |t, s| theme::text_input_style(t, s, is_dark))
+                    .style(move |t, s| theme::text_input_style(t, s, is_dark)),
+                is_dark
             ),
             input_group("Role", 
                 pick_list(
-                    ROLES.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+                    Role::all().iter().map(|s| s.to_string()).collect::<Vec<_>>(),
                     form.role.clone(),
                     Message::RoleSelected
                 )
                     .padding(12)
                     .width(Length::Fill)
-                    .style(move |t, s| theme::pick_list_style(t, s, is_dark))
+                    .style(move |t, s| theme::pick_list_style(t, s, is_dark)),
+                is_dark
             )
         ].spacing(20),
 
         row![
             input_group("Sex", 
                 pick_list(
-                    SEX_OPTIONS.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+                    Sex::all().iter().map(|s| s.to_string()).collect::<Vec<_>>(),
                     form.sex.clone(),
                     Message::SexSelected
                 )
                     .padding(12)
                     .width(Length::Fill)
-                    .style(move |t, s| theme::pick_list_style(t, s, is_dark))
+                    .style(move |t, s| theme::pick_list_style(t, s, is_dark)),
+                is_dark
             ),
             input_group("Required Office Days", 
                 pick_list(DAYS_OPTIONS, form.days_per_week, Message::DaysChanged)
                     .padding(12)
                     .width(Length::Fill)
                     .placeholder("Select days")
-                    .style(move |t, s| theme::pick_list_style(t, s, is_dark))
+                    .style(move |t, s| theme::pick_list_style(t, s, is_dark)),
+                is_dark
             )
         ].spacing(20),
 
@@ -808,17 +799,14 @@ fn form_view<'a>(
              // Mentor Selection
              input_group("Assign Mentor", 
                 pick_list(
-                    if form.available_employees.is_empty() { 
-                         std::borrow::Cow::Owned(MENTORS.iter().map(|s| s.to_string()).collect())
-                    } else {
-                         std::borrow::Cow::Borrowed(form.available_employees.as_slice())
-                    },
+                    form.available_employees.clone(),
                     form.mentor.clone(), 
                     Message::MentorSelected
                 )
                 .padding(12)
                 .width(Length::Fill)
-                .style(move |t, s| theme::pick_list_style(t, s, is_dark))
+                .style(move |t, s| theme::pick_list_style(t, s, is_dark)),
+                is_dark
             ),
             // Mentee Selection (Multi-select simulation via chips?)
             // For now, simple picklist to add one by one or a custom widget.
@@ -827,11 +815,7 @@ fn form_view<'a>(
                 text("Assign Mentees").size(14).font(iced::font::Font { weight: iced::font::Weight::Bold, ..Default::default() }),
                 row![
                      pick_list(
-                        if form.available_employees.is_empty() { 
-                             std::borrow::Cow::Owned(MENTEES.iter().map(|s| s.to_string()).collect())
-                        } else {
-                             std::borrow::Cow::Borrowed(form.available_employees.as_slice())
-                        },
+                        form.available_employees.clone(),
                         None::<String>, 
                         Message::MenteeSelected
                      )
@@ -967,8 +951,8 @@ fn delete_confirmation_view<'a>(idx: usize, is_dark: bool) -> Element<'a, Messag
                     ..Default::default()
                 }),
                 column![
-                    text("Delete Employee").size(18).font(iced::font::Font { weight: iced::font::Weight::Semibold, ..Default::default() }),
-                    text("Are you sure you want to delete this employee? This action cannot be undone.").size(12).style(move |_t: &Theme| text::Style { color: Some(if is_dark { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT }) })
+                    text("Remove Employee").size(18).font(iced::font::Font { weight: iced::font::Weight::Semibold, ..Default::default() }),
+                    text("Are you sure you want to remove this employee? This action cannot be undone.").size(12).style(move |_t: &Theme| text::Style { color: Some(if is_dark { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT }) })
                 ].spacing(2)
             ].spacing(12).align_y(Alignment::Center).padding([24, 32]),
         
@@ -983,7 +967,7 @@ fn delete_confirmation_view<'a>(idx: usize, is_dark: bool) -> Element<'a, Messag
                             ..Default::default()
                         }
                     }),
-                button(text("Delete").size(14).font(iced::font::Font { weight: iced::font::Weight::Semibold, ..Default::default() }))
+                button(text("Remove").size(14).font(iced::font::Font { weight: iced::font::Weight::Semibold, ..Default::default() }))
                     .on_press(Message::ConfirmDelete(idx))
                     .padding([10, 24])
                     .style(move |_t, _s| {
@@ -1048,9 +1032,12 @@ fn backdrop<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message
         .into()
 }
 
-fn input_group<'a>(label: &'a str, input: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
+fn input_group<'a>(label: &'a str, input: impl Into<Element<'a, Message>>, is_dark: bool) -> Element<'a, Message> {
     column![
-        text(label).size(14).font(iced::font::Font { weight: iced::font::Weight::Bold, ..Default::default() }),
+        text(label)
+            .size(14)
+            .font(iced::font::Font { weight: iced::font::Weight::Bold, ..Default::default() })
+            .style(move |_| text::Style { color: Some(if is_dark { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT }) }),
         input.into()
     ]
     .spacing(8)

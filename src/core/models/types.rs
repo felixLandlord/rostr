@@ -8,6 +8,12 @@ pub enum Sex {
     Female,
 }
 
+impl Sex {
+    pub fn all() -> Vec<Sex> {
+        vec![Sex::Male, Sex::Female]
+    }
+}
+
 impl fmt::Display for Sex {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -174,3 +180,5 @@ impl Weekday {
         ]
     }
 }
+
+pub const DAYS_OPTIONS: &[u8] = &[1, 2, 3, 5];
