@@ -4,7 +4,3 @@ target
 **/*.rs.bk
 *.pdb
 **.DS_Store
-
-designs
-iced-rs-examples.txt
-internal/
