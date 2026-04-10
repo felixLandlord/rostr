@@ -28,6 +28,7 @@ impl TopBar {
         is_dark: bool,
         filter_open: bool,
         selected_days: &'a [Weekday],
+        is_blocked: bool,
     ) -> Element<'a, Message> {
         let border_color = if is_dark { BORDER_DARK } else { BORDER_LIGHT };
         let text_color = if is_dark { TEXT_DARK } else { TEXT_LIGHT };
@@ -45,9 +46,15 @@ impl TopBar {
                 .height(32)
                 .align_x(Alignment::Center)
                 .align_y(Alignment::Center),
-        )
-        .on_press(Message::ToggleTheme)
-        .style(move |_, _status| button::Style {
+        );
+        
+        let logo = if is_blocked {
+            logo
+        } else {
+            logo.on_press(Message::ToggleTheme)
+        };
+        
+        let logo = logo.style(move |_, _status| button::Style {
             background: Some(icon_bg.into()),
             border: Border {
                 radius: 8.0.into(),
@@ -63,52 +70,56 @@ impl TopBar {
             .width(165),
             row![
                 tooltip(
-                    button(icon_chevron_left().size(18).color(muted_color))
-                        .on_press(Message::PreviousDate)
-                        .padding(4)
-                        .style(move |_, status| {
-                            let bg = if is_dark { GRAY_800 } else { GRAY_50 };
-                            let b_color = if status == button::Status::Hovered {
-                                PRIMARY
-                            } else {
-                                border_color
-                            };
-                            button::Style {
-                                background: Some(bg.into()),
-                                border: Border {
-                                    radius: 6.0.into(),
-                                    color: b_color,
-                                    width: 1.0,
-                                },
-                                ..button::Style::default()
-                            }
-                        }),
+                    {
+                        let btn = button(icon_chevron_left().size(18).color(muted_color))
+                            .padding(4)
+                            .style(move |_, status| {
+                                let bg = if is_dark { GRAY_800 } else { GRAY_50 };
+                                let b_color = if status == button::Status::Hovered && !is_blocked {
+                                    PRIMARY
+                                } else {
+                                    border_color
+                                };
+                                button::Style {
+                                    background: Some(bg.into()),
+                                    border: Border {
+                                        radius: 6.0.into(),
+                                        color: b_color,
+                                        width: 1.0,
+                                    },
+                                    ..button::Style::default()
+                                }
+                            });
+                        if is_blocked { btn } else { btn.on_press(Message::PreviousDate) }
+                    },
                     "Previous Month",
                     tooltip::Position::Bottom
                 )
                 .gap(8)
                 .style(container::rounded_box),
                 tooltip(
-                    button(icon_chevron_right().size(18).color(muted_color))
-                        .on_press(Message::NextDate)
-                        .padding(4)
-                        .style(move |_, status| {
-                            let bg = if is_dark { GRAY_800 } else { GRAY_50 };
-                            let b_color = if status == button::Status::Hovered {
-                                PRIMARY
-                            } else {
-                                border_color
-                            };
-                            button::Style {
-                                background: Some(bg.into()),
-                                border: Border {
-                                    radius: 6.0.into(),
-                                    color: b_color,
-                                    width: 1.0,
-                                },
-                                ..button::Style::default()
-                            }
-                        }),
+                    {
+                        let btn = button(icon_chevron_right().size(18).color(muted_color))
+                            .padding(4)
+                            .style(move |_, status| {
+                                let bg = if is_dark { GRAY_800 } else { GRAY_50 };
+                                let b_color = if status == button::Status::Hovered && !is_blocked {
+                                    PRIMARY
+                                } else {
+                                    border_color
+                                };
+                                button::Style {
+                                    background: Some(bg.into()),
+                                    border: Border {
+                                        radius: 6.0.into(),
+                                        color: b_color,
+                                        width: 1.0,
+                                    },
+                                    ..button::Style::default()
+                                }
+                            });
+                        if is_blocked { btn } else { btn.on_press(Message::NextDate) }
+                    },
                     "Next Month",
                     tooltip::Position::Bottom
                 )
@@ -138,23 +149,25 @@ impl TopBar {
         // Right Section: Search Bar & Filter
         let filter_icon_color = if filter_open || !selected_days.is_empty() { PRIMARY } else { muted_color };
         let filter_btn = tooltip(
-            button(container(icon_list_filter().size(18).color(filter_icon_color)).padding(6))
-                .on_press(Message::ToggleFilter)
-                .style(move |_, status| {
-                    let bg = if status == button::Status::Hovered {
-                        if is_dark { GRAY_800 } else { GRAY_50 }
-                    } else {
-                        Color::TRANSPARENT
-                    };
-                    button::Style {
-                        background: Some(bg.into()),
-                        border: Border {
-                            radius: 8.0.into(),
-                            ..Border::default()
-                        },
-                        ..button::Style::default()
-                    }
-                }),
+            {
+                let btn = button(container(icon_list_filter().size(18).color(filter_icon_color)).padding(6))
+                    .style(move |_, status| {
+                        let bg = if status == button::Status::Hovered && !is_blocked {
+                            if is_dark { GRAY_800 } else { GRAY_50 }
+                        } else {
+                            Color::TRANSPARENT
+                        };
+                        button::Style {
+                            background: Some(bg.into()),
+                            border: Border {
+                                radius: 8.0.into(),
+                                ..Border::default()
+                            },
+                            ..button::Style::default()
+                        }
+                    });
+                if is_blocked { btn } else { btn.on_press(Message::ToggleFilter) }
+            },
             "Filter by Day",
             tooltip::Position::Bottom
         )
@@ -173,12 +186,11 @@ impl TopBar {
                     _ => "",
                 };
                 
-                button(
+                let btn = button(
                     text(label).size(12).style(move |_| text::Style {
                         color: Some(if is_selected { Color::WHITE } else { muted_color })
                     })
                 )
-                .on_press(Message::FilterChanged(day))
                 .padding([4, 8])
                 .style(move |_, _| {
                     button::Style {
@@ -190,8 +202,9 @@ impl TopBar {
                         },
                         ..button::Style::default()
                     }
-                })
-                .into()
+                });
+
+                if is_blocked { btn.into() } else { btn.on_press(Message::FilterChanged(day)).into() }
             });
             
             row(day_buttons).spacing(4).align_y(Alignment::Center).into()
@@ -199,11 +212,7 @@ impl TopBar {
             row![].into()
         };
 
-        let search_bar = container(
-            row![
-                icon_search().size(16).color(muted_color),
-                text_input("Search employees...", search_value)
-                    .on_input(Message::SearchChanged)
+        let search_input = text_input("Search employees...", search_value)
                     .size(14)
                     .style(move |_, _| {
                         text_input::Style {
@@ -214,7 +223,14 @@ impl TopBar {
                             value: text_color,
                             selection: PRIMARY,
                         }
-                    })
+                    });
+        
+        let search_input = if is_blocked { search_input } else { search_input.on_input(Message::SearchChanged) };
+
+        let search_bar = container(
+            row![
+                icon_search().size(16).color(muted_color),
+                search_input
             ]
             .spacing(8)
             .align_y(Alignment::Center)
@@ -244,10 +260,41 @@ impl TopBar {
             row![
                 separator,
                 tooltip(
-                    button(container(icon_bell().size(20).color(muted_color)).padding(8))
-                        .on_press(Message::NotificationPressed)
+                    {
+                        let btn = button(container(icon_bell().size(20).color(muted_color)).padding(8))
+                            .style(move |_, status| {
+                                let bg = if status == button::Status::Hovered && !is_blocked {
+                                    if is_dark { GRAY_800 } else { GRAY_50 }
+                                } else {
+                                    Color::TRANSPARENT
+                                };
+                                button::Style {
+                                    background: Some(bg.into()),
+                                    border: Border {
+                                        radius: 20.0.into(),
+                                        ..Border::default()
+                                    },
+                                    ..button::Style::default()
+                                }
+                            });
+                        if is_blocked { btn } else { btn.on_press(Message::NotificationPressed) }
+                    },
+                    "Notifications",
+                    tooltip::Position::Bottom
+                )
+                .gap(8)
+                .style(container::rounded_box),
+                tooltip(
+                    {
+                        let btn = button(
+                            container(icon_settings().size(20).color(muted_color))
+                                .width(40)
+                                .height(40)
+                                .align_x(Alignment::Center)
+                                .align_y(Alignment::Center)
+                        )
                         .style(move |_, status| {
-                            let bg = if status == button::Status::Hovered {
+                            let bg = if status == button::Status::Hovered && !is_blocked {
                                 if is_dark { GRAY_800 } else { GRAY_50 }
                             } else {
                                 Color::TRANSPARENT
@@ -260,36 +307,9 @@ impl TopBar {
                                 },
                                 ..button::Style::default()
                             }
-                        }),
-                    "Notifications",
-                    tooltip::Position::Bottom
-                )
-                .gap(8)
-                .style(container::rounded_box),
-                tooltip(
-                    button(
-                        container(icon_settings().size(20).color(muted_color))
-                            .width(40)
-                            .height(40)
-                            .align_x(Alignment::Center)
-                            .align_y(Alignment::Center)
-                    )
-                    .on_press(Message::SettingsPressed)
-                    .style(move |_, status| {
-                        let bg = if status == button::Status::Hovered {
-                            if is_dark { GRAY_800 } else { GRAY_50 }
-                        } else {
-                            Color::TRANSPARENT
-                        };
-                        button::Style {
-                            background: Some(bg.into()),
-                            border: Border {
-                                radius: 20.0.into(),
-                                ..Border::default()
-                            },
-                            ..button::Style::default()
-                        }
-                    }),
+                        });
+                        if is_blocked { btn } else { btn.on_press(Message::SettingsPressed) }
+                    },
                     "Settings",
                     tooltip::Position::Bottom
                 )

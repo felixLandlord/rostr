@@ -185,46 +185,48 @@ impl AttendanceTable {
                     let is_selected = self.selected_employee == Some(emp_idx);
 
                     let checkbox_cell = container(
-                        button(
-                            container(
-                                if is_selected {
-                                    container("")
-                                        .width(10)
-                                        .height(10)
-                                        .style(|_t: &Theme| container::Style {
-                                            background: Some(theme::PRIMARY.into()), // Green dot
-                                            border: iced::border::Border {
-                                                radius: 5.0.into(),
+                        {
+                            let btn = button(
+                                container(
+                                    if is_selected {
+                                        container("")
+                                            .width(10)
+                                            .height(10)
+                                            .style(|_t: &Theme| container::Style {
+                                                background: Some(theme::PRIMARY.into()), // Green dot
+                                                border: iced::border::Border {
+                                                    radius: 5.0.into(),
+                                                    ..Default::default()
+                                                },
                                                 ..Default::default()
-                                            },
-                                            ..Default::default()
-                                        })
-                                } else {
-                                    container("").width(0).height(0)
-                                }
-                            )
-                            .width(20)
-                            .height(20)
-                            .align_x(Alignment::Center)
-                            .align_y(Alignment::Center)
-                            .style(move |theme: &Theme| container::Style {
-                                border: iced::border::Border {
-                                    color: if is_selected {
-                                        theme::PRIMARY
+                                            })
                                     } else {
-                                        if theme == &Theme::Dark {
-                                            theme::BORDER_DARK
+                                        container("").width(0).height(0)
+                                    }
+                                )
+                                .width(20)
+                                .height(20)
+                                .align_x(Alignment::Center)
+                                .align_y(Alignment::Center)
+                                .style(move |theme: &Theme| container::Style {
+                                    border: iced::border::Border {
+                                        color: if is_selected {
+                                            theme::PRIMARY
                                         } else {
-                                            theme::BORDER_LIGHT
-                                        }
+                                            if theme == &Theme::Dark {
+                                                theme::BORDER_DARK
+                                            } else {
+                                                theme::BORDER_LIGHT
+                                            }
+                                        },
+                                        width: 1.5,
+                                        radius: 4.0.into(),
                                     },
-                                    width: 1.5,
-                                    radius: 4.0.into(),
-                                },
-                                ..Default::default()
-                            })
-                        )
-                        .on_press(Message::SelectEmployee(emp_idx))
+                                    ..Default::default()
+                                })
+                            );
+                            if is_read_only { btn } else { btn.on_press(Message::SelectEmployee(emp_idx)) }
+                        }
                         .padding(0)
                         .style(|_, _| button::Style::default()) // No default button bg
                     )

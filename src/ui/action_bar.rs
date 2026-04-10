@@ -161,7 +161,11 @@ impl ActionBar {
         let add_btn = ghost_button(
             icon_user_plus(),
             "Add Employee",
-            Some(Message::AddEmployee),
+            if is_read_only {
+                None
+            } else {
+                Some(Message::AddEmployee)
+            },
             is_dark,
             muted_color,
             false,
@@ -171,7 +175,7 @@ impl ActionBar {
         let edit_btn = ghost_button(
             icon_pencil(),
             "Edit Employee",
-            if has_selection {
+            if has_selection && !is_read_only {
                 Some(Message::EditEmployee)
             } else {
                 None
@@ -185,7 +189,7 @@ impl ActionBar {
         let delete_btn = ghost_button(
             icon_trash_2(),
             "Remove Employee",
-            if has_selection {
+            if has_selection && !is_read_only {
                 Some(Message::DeleteEmployee)
             } else {
                 None
@@ -199,7 +203,11 @@ impl ActionBar {
         let report_btn = ghost_button(
             icon_chart_no_axes_column(),
             "Generation Report",
-            Some(Message::Report),
+            if is_read_only {
+                None
+            } else {
+                Some(Message::Report)
+            },
             is_dark,
             muted_color,
             false,
@@ -209,7 +217,11 @@ impl ActionBar {
         let share_btn = ghost_button(
             icon_share(),
             "Share",
-            Some(Message::Export),
+            if is_read_only {
+                None
+            } else {
+                Some(Message::Export)
+            },
             is_dark,
             muted_color,
             false,

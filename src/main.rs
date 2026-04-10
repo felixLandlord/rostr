@@ -973,6 +973,9 @@ impl RostrApp {
     fn view(&self) -> Element<'_, Message> {
         let date_str = self.current_date.format("%B %Y").to_string();
         let employee_count = self.attendance_table.len();
+        let is_modal_open = !matches!(self.modal, Modal::None);
+        let is_content_locked = self.is_locked || is_modal_open;
+
         let top_bar = TopBar::view(
             date_str,
             format!("Monthly Attendance Overview • {} Active Employees", employee_count),
@@ -980,11 +983,12 @@ impl RostrApp {
             self.is_dark,
             self.filter_open,
             &self.selected_days,
+            is_modal_open,
         )
         .map(Message::TopBar);
 
-        let action_bar = ActionBar::view(self.is_dark, self.attendance_table.selected_employee.is_some(), self.is_locked).map(Message::ActionBar);
-        let attendance_table = self.attendance_table.view(self.is_dark, self.is_locked).map(Message::AttendanceTable);
+        let action_bar = ActionBar::view(self.is_dark, self.attendance_table.selected_employee.is_some(), is_content_locked).map(Message::ActionBar);
+        let attendance_table = self.attendance_table.view(self.is_dark, is_content_locked).map(Message::AttendanceTable);
 
         let content = container(
             column![

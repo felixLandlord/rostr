@@ -116,7 +116,6 @@ pub enum Message {
     MenteeRemoved(String),
     MentorSelected(String),
     ToggleDay(usize),
-    OverlayPressed,
     Close,
     DownloadPdf,
     ResetApp,
@@ -1020,16 +1019,20 @@ fn modal_card<'a>(content: impl Into<Element<'a, Message>>, max_width: f32, is_d
 }
 
 fn backdrop<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
-    container(content)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .align_x(Alignment::Center)
-        .align_y(Alignment::Center)
-        .style(|_| container::Style {
-            background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.5).into()),
-            ..Default::default()
-        })
-        .into()
+    button(
+        container(content)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(Alignment::Center)
+            .align_y(Alignment::Center)
+    )
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .style(|_, _| button::Style {
+        background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.5).into()),
+        ..Default::default()
+    })
+    .into()
 }
 
 fn input_group<'a>(label: &'a str, input: impl Into<Element<'a, Message>>, is_dark: bool) -> Element<'a, Message> {
