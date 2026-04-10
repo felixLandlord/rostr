@@ -1,9 +1,9 @@
 use crate::ui::theme::*;
-use iced::widget::{Space, button, container, row, text};
+use iced::widget::{button, container, row, text, Space};
 use iced::{Alignment, Border, Color, Element, Theme};
 use lucide_icons::iced::{
-    icon_chart_no_axes_column, icon_download, icon_pencil, icon_undo_2, icon_save,
-    icon_sparkles, icon_trash_2, icon_upload, icon_user_plus,
+    icon_chart_no_axes_column, icon_pencil, icon_save, icon_share, icon_sparkles, icon_trash_2,
+    icon_undo_2, icon_user_plus,
 };
 
 pub struct ActionBar;
@@ -22,7 +22,11 @@ pub enum Message {
 }
 
 impl ActionBar {
-    pub fn view<'a>(is_dark: bool, has_selection: bool, is_read_only: bool) -> Element<'a, Message> {
+    pub fn view<'a>(
+        is_dark: bool,
+        has_selection: bool,
+        is_read_only: bool,
+    ) -> Element<'a, Message> {
         let border_color = if is_dark { BORDER_DARK } else { BORDER_LIGHT };
         let _text_color = if is_dark { TEXT_DARK } else { TEXT_LIGHT };
         let muted_color = if is_dark {
@@ -36,26 +40,28 @@ impl ActionBar {
             button(
                 row![
                     icon_sparkles().size(18).color(muted_color),
-                    text("Generate").size(14).font(iced::font::Font {
-                        weight: iced::font::Weight::Bold,
-                        ..Default::default()
-                    })
-                    .style(move |_| text::Style { color: Some(muted_color) })
+                    text("Generate")
+                        .size(14)
+                        .font(iced::font::Font {
+                            weight: iced::font::Weight::Bold,
+                            ..Default::default()
+                        })
+                        .style(move |_| text::Style {
+                            color: Some(muted_color)
+                        })
                 ]
                 .spacing(8)
                 .align_y(Alignment::Center),
             )
             .padding([8, 16])
-            .style(move |_, _| {
-                button::Style {
-                    background: Some(if is_dark { SURFACE_DARK } else { SURFACE_LIGHT }.into()),
-                    border: Border {
-                        radius: 8.0.into(),
-                        color: if is_dark { BORDER_DARK } else { BORDER_LIGHT },
-                        width: 1.0,
-                    },
-                    ..button::Style::default()
-                }
+            .style(move |_, _| button::Style {
+                background: Some(if is_dark { SURFACE_DARK } else { SURFACE_LIGHT }.into()),
+                border: Border {
+                    radius: 8.0.into(),
+                    color: if is_dark { BORDER_DARK } else { BORDER_LIGHT },
+                    width: 1.0,
+                },
+                ..button::Style::default()
             })
         } else {
             button(
@@ -91,14 +97,15 @@ impl ActionBar {
 
         // Save Button (Outline)
         let save_btn: Element<'a, Message> = if is_read_only {
-             ghost_button(
+            ghost_button(
                 icon_save(),
                 "Save",
                 None, // Disabled
                 is_dark,
                 muted_color,
                 false,
-            ).into()
+            )
+            .into()
         } else {
             button(
                 row![
@@ -115,10 +122,7 @@ impl ActionBar {
             .padding([8, 16])
             .style(move |_, status| {
                 let (bg, border_col) = if status == button::Status::Hovered {
-                    (
-                        if is_dark { GRAY_800 } else { Color::WHITE },
-                        PRIMARY,
-                    )
+                    (if is_dark { GRAY_800 } else { Color::WHITE }, PRIMARY)
                 } else {
                     (
                         if is_dark { GRAY_800 } else { Color::WHITE },
@@ -135,14 +139,19 @@ impl ActionBar {
                     text_color: if is_dark { TEXT_DARK } else { TEXT_LIGHT },
                     ..button::Style::default()
                 }
-            }).into()
+            })
+            .into()
         };
 
         // Undo Button (Ghost)
         let undo_btn = ghost_button(
             icon_undo_2(),
             "Undo Changes",
-            if is_read_only { None } else { Some(Message::Undo) },
+            if is_read_only {
+                None
+            } else {
+                Some(Message::Undo)
+            },
             is_dark,
             muted_color,
             false,
@@ -162,7 +171,11 @@ impl ActionBar {
         let edit_btn = ghost_button(
             icon_pencil(),
             "Edit Employee",
-            if has_selection { Some(Message::EditEmployee) } else { None },
+            if has_selection {
+                Some(Message::EditEmployee)
+            } else {
+                None
+            },
             is_dark,
             muted_color,
             false,
@@ -172,7 +185,11 @@ impl ActionBar {
         let delete_btn = ghost_button(
             icon_trash_2(),
             "Remove Employee",
-            if has_selection { Some(Message::DeleteEmployee) } else { None },
+            if has_selection {
+                Some(Message::DeleteEmployee)
+            } else {
+                None
+            },
             is_dark,
             muted_color,
             true,
@@ -188,36 +205,21 @@ impl ActionBar {
             false,
         );
 
-        // Import (Ghost)
-        let import_btn = ghost_button(
-            icon_upload(),
-            "Import",
-            Some(Message::Import),
-            is_dark,
-            muted_color,
-            false,
-        );
-
-        // Export (Ghost)
-        let export_btn = ghost_button(
-            icon_download(),
-            "Export",
+        // Share (Ghost)
+        let share_btn = ghost_button(
+            icon_share(),
+            "Share",
             Some(Message::Export),
             is_dark,
             muted_color,
             false,
         );
 
+        // (Removed Import button)
+
         let separator = || {
             container(Space::new().width(1.0).height(24.0)).style(move |_| container::Style {
-                background: Some(
-                    if is_dark {
-                        BORDER_DARK
-                    } else {
-                        BORDER_LIGHT
-                    }
-                    .into(),
-                ),
+                background: Some(if is_dark { BORDER_DARK } else { BORDER_LIGHT }.into()),
                 ..container::Style::default()
             })
         };
@@ -242,14 +244,13 @@ impl ActionBar {
                 Space::new().width(iced::Length::Fill),
                 report_btn,
                 Space::new().width(iced::Length::Fill),
-                import_btn,
-                Space::new().width(iced::Length::Fill),
-                export_btn,
+                share_btn,
             ]
             .spacing(12)
             .align_y(Alignment::Center)
             .padding(8),
-        ).width(iced::Length::Fill)
+        )
+        .width(iced::Length::Fill)
         .style(move |theme: &Theme| {
             let _palette = theme.palette();
             container::Style {
@@ -284,24 +285,38 @@ fn ghost_button<'a, Message: Clone + 'a>(
         row![
             icon.size(18).style(move |_| text::Style {
                 color: Some(if is_disabled {
-                     if is_dark { Color::from_rgb(0.3, 0.3, 0.3) } else { Color::from_rgb(0.8, 0.8, 0.8) }
+                    if is_dark {
+                        Color::from_rgb(0.3, 0.3, 0.3)
+                    } else {
+                        Color::from_rgb(0.8, 0.8, 0.8)
+                    }
                 } else if is_danger {
                     Color::from_rgb(0.9, 0.2, 0.2)
                 } else {
                     muted_color
                 })
             }),
-            text(label).size(14).font(iced::font::Font {
-                weight: iced::font::Weight::Medium,
-                ..Default::default()
-            })
-            .style(move |_| text::Style {
-                color: Some(if is_disabled {
-                     if is_dark { Color::from_rgb(0.3, 0.3, 0.3) } else { Color::from_rgb(0.8, 0.8, 0.8) }
-                } else {
-                     if is_dark { TEXT_MUTED_DARK } else { TEXT_MUTED_LIGHT } // Default text color
+            text(label)
+                .size(14)
+                .font(iced::font::Font {
+                    weight: iced::font::Weight::Medium,
+                    ..Default::default()
                 })
-            })
+                .style(move |_| text::Style {
+                    color: Some(if is_disabled {
+                        if is_dark {
+                            Color::from_rgb(0.3, 0.3, 0.3)
+                        } else {
+                            Color::from_rgb(0.8, 0.8, 0.8)
+                        }
+                    } else {
+                        if is_dark {
+                            TEXT_MUTED_DARK
+                        } else {
+                            TEXT_MUTED_LIGHT
+                        } // Default text color
+                    })
+                })
         ]
         .spacing(8)
         .align_y(Alignment::Center),
@@ -318,7 +333,11 @@ fn ghost_button<'a, Message: Clone + 'a>(
         if is_disabled {
             return button::Style {
                 background: None,
-                text_color: if is_dark { Color::from_rgb(0.3, 0.3, 0.3) } else { Color::from_rgb(0.8, 0.8, 0.8) },
+                text_color: if is_dark {
+                    Color::from_rgb(0.3, 0.3, 0.3)
+                } else {
+                    Color::from_rgb(0.8, 0.8, 0.8)
+                },
                 ..button::Style::default()
             };
         }
@@ -331,18 +350,26 @@ fn ghost_button<'a, Message: Clone + 'a>(
                     Color::from_rgb(1.0, 0.95, 0.95)
                 }
             } else {
-                if is_dark { GRAY_800 } else { GRAY_50 }
+                if is_dark {
+                    GRAY_800
+                } else {
+                    GRAY_50
+                }
             }
         } else {
             Color::TRANSPARENT
         };
-        
+
         let text_col = if status == button::Status::Hovered && is_danger {
-             Color::from_rgb(0.8, 0.0, 0.0)
+            Color::from_rgb(0.8, 0.0, 0.0)
         } else if is_danger {
-             Color::from_rgb(0.6, 0.2, 0.2)
+            Color::from_rgb(0.6, 0.2, 0.2)
         } else {
-            if is_dark { TEXT_MUTED_DARK } else { TEXT_MUTED_LIGHT }
+            if is_dark {
+                TEXT_MUTED_DARK
+            } else {
+                TEXT_MUTED_LIGHT
+            }
         };
 
         button::Style {
