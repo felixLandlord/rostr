@@ -22,40 +22,78 @@ impl ScheduleGenerator {
     }
 
     fn initialize_combinations(&mut self) {
-        // 1-day combinations
-        self.combinations.insert(1, vec![
-            DayCombination { days: vec![Weekday::Monday] },
-            DayCombination { days: vec![Weekday::Tuesday] },
-            DayCombination { days: vec![Weekday::Wednesday] },
-            DayCombination { days: vec![Weekday::Thursday] },
-            DayCombination { days: vec![Weekday::Friday] },
-        ]);
+        // 1-day combinations (no Friday - only explicit fixed days)
+        self.combinations.insert(
+            1,
+            vec![
+                DayCombination {
+                    days: vec![Weekday::Monday],
+                },
+                DayCombination {
+                    days: vec![Weekday::Tuesday],
+                },
+                DayCombination {
+                    days: vec![Weekday::Wednesday],
+                },
+                DayCombination {
+                    days: vec![Weekday::Thursday],
+                },
+            ],
+        );
 
-        // 2-day combinations
-        self.combinations.insert(2, vec![
-            DayCombination { days: vec![Weekday::Monday, Weekday::Wednesday] },
-            DayCombination { days: vec![Weekday::Monday, Weekday::Thursday] },
-            DayCombination { days: vec![Weekday::Monday, Weekday::Friday] },
-            DayCombination { days: vec![Weekday::Tuesday, Weekday::Thursday] },
-            DayCombination { days: vec![Weekday::Tuesday, Weekday::Friday] },
-            DayCombination { days: vec![Weekday::Wednesday, Weekday::Friday] },
-        ]);
+        // 2-day combinations (no Friday)
+        self.combinations.insert(
+            2,
+            vec![
+                DayCombination {
+                    days: vec![Weekday::Monday, Weekday::Wednesday],
+                },
+                DayCombination {
+                    days: vec![Weekday::Monday, Weekday::Thursday],
+                },
+                DayCombination {
+                    days: vec![Weekday::Tuesday, Weekday::Thursday],
+                },
+                // DayCombination {
+                //     days: vec![Weekday::Tuesday, Weekday::Wednesday],
+                // },
+                // DayCombination {
+                //     days: vec![Weekday::Wednesday, Weekday::Thursday],
+                // },
+            ],
+        );
 
-        // 3-day combinations
-        self.combinations.insert(3, vec![
-            DayCombination { days: vec![Weekday::Monday, Weekday::Wednesday, Weekday::Friday] },
-        ]);
+        // 3-day combinations (no Friday)
+        self.combinations.insert(
+            3,
+            vec![
+                DayCombination {
+                    days: vec![Weekday::Monday, Weekday::Tuesday, Weekday::Wednesday],
+                },
+                DayCombination {
+                    days: vec![Weekday::Monday, Weekday::Tuesday, Weekday::Thursday],
+                },
+                DayCombination {
+                    days: vec![Weekday::Monday, Weekday::Wednesday, Weekday::Thursday],
+                },
+                DayCombination {
+                    days: vec![Weekday::Tuesday, Weekday::Wednesday, Weekday::Thursday],
+                },
+            ],
+        );
 
-        // 5-day combinations
-        self.combinations.insert(5, vec![
-            DayCombination { days: vec![
-                Weekday::Monday,
-                Weekday::Tuesday,
-                Weekday::Wednesday,
-                Weekday::Thursday,
-                Weekday::Friday,
-            ] },
-        ]);
+        // 4-day combinations
+        self.combinations.insert(
+            4,
+            vec![DayCombination {
+                days: vec![
+                    Weekday::Monday,
+                    Weekday::Tuesday,
+                    Weekday::Wednesday,
+                    Weekday::Thursday,
+                ],
+            }],
+        );
     }
 
     pub fn get_combinations(&self, days: i32) -> Option<&Vec<DayCombination>> {

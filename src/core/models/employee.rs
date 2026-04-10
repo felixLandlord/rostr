@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::core::models::types::{Role, Sex, Weekday};
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -47,8 +47,8 @@ impl Employee {
             return Err("employee name cannot be empty".to_string());
         }
 
-        if self.required_days < 0 || self.required_days > 5 {
-            return Err("required days must be between 0 and 5".to_string());
+        if self.required_days < 0 || self.required_days > 4 {
+            return Err("required days must be between 0 and 4".to_string());
         }
 
         if self.fixed_days.len() > self.required_days as usize {

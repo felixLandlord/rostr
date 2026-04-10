@@ -1,6 +1,6 @@
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Sex {
@@ -181,4 +181,4 @@ impl Weekday {
     }
 }
 
-pub const DAYS_OPTIONS: &[u8] = &[1, 2, 3, 5];
+pub const DAYS_OPTIONS: &[u8] = &[1, 2, 3, 4];
