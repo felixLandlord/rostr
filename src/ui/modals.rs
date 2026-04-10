@@ -874,7 +874,7 @@ fn form_view<'a>(
                     }
                 }),
             button(text(submit_label).size(14).font(iced::font::Font { weight: iced::font::Weight::Semibold, ..Default::default() }))
-                .on_press(if is_edit { Message::SubmitEdit(0) } else { Message::SubmitAdd }) // Index ignored for SubmitAdd
+                .on_press(Message::SubmitAdd)
                 .padding([12, 24])
                 .style(move |_t, _s| {
                      button::Style {

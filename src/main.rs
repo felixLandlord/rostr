@@ -692,13 +692,14 @@ impl RostrApp {
                     };
 
                     if let Some(form) = form_data {
-                        // Check for duplicate name (case-insensitive)
-                        if self.attendance_table.employees.iter().any(|e| e.name.trim().eq_ignore_ascii_case(form.name.trim())) {
-                            return self.show_toast("Duplicate Name".to_string(), "An employee with this name already exists.".to_string(), Status::Error);
-                        }
-
                         if let Some(db) = &self.database {
                             if let Ok(conn) = db.get_connection() {
+                                // Check for duplicate name (case-insensitive) against all employees
+                                if let Ok(all_employees) = EmployeeRepository::find_all(&conn) {
+                                    if all_employees.iter().any(|e| e.name.trim().eq_ignore_ascii_case(form.name.trim())) {
+                                        return self.show_toast("Duplicate Name".to_string(), "An employee with this name already exists.".to_string(), Status::Error);
+                                    }
+                                }
                                 // Convert form to CoreEmployee
                                 let sex = Sex::from_str(&form.sex.unwrap_or("Male".to_string())).unwrap_or(Sex::Male);
                                 let role = Role::from_str(&form.role.unwrap_or("Full-stack Engineer".to_string())).unwrap_or(Role::FullStackEngineer);
@@ -784,13 +785,14 @@ impl RostrApp {
 
                     if let Some(form) = form_data {
                          if let Some(employee) = self.attendance_table.employees.get(idx) {
-                            // Check for duplicate name (excluding current employee)
-                            if self.attendance_table.employees.iter().any(|e| e.id != employee.id && e.name.trim().eq_ignore_ascii_case(form.name.trim())) {
-                                return self.show_toast("Duplicate Name".to_string(), "An employee with this name already exists.".to_string(), Status::Error);
-                            }
-
                             if let Some(db) = &self.database {
                                 if let Ok(conn) = db.get_connection() {
+                                    // Check for duplicate name (excluding current employee) against all employees
+                                    if let Ok(all_employees) = EmployeeRepository::find_all(&conn) {
+                                        if all_employees.iter().any(|e| e.id != employee.id && e.name.trim().eq_ignore_ascii_case(form.name.trim())) {
+                                            return self.show_toast("Duplicate Name".to_string(), "An employee with this name already exists.".to_string(), Status::Error);
+                                        }
+                                    }
                                     // Fetch original to keep ID
                                     if let Ok(Some(mut core_emp)) = EmployeeRepository::find_by_id(&conn, employee.id) {
                                         core_emp.name = form.name.clone();
