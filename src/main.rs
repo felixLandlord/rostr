@@ -3,7 +3,7 @@ mod ui;
 
 use ui::attendance_table::{self, AttendanceTable, Message as AttendanceTableMessage, Employee as UIEmployee, AttendanceStatus};
 use ui::action_bar::{ActionBar, Message as ActionBarMessage};
-use ui::modals::{self, Modal, Message as ModalMessage, EmployeeForm, ReportData};
+use ui::modals::{self, Modal, Message as ModalMessage, EmployeeForm, ReportData, LlmReportState};
 use ui::toasts::{self, Toast, Status};
 use chrono::{Datelike, Local, NaiveDate};
 use iced::task::Task;
@@ -16,22 +16,31 @@ use core::storage::{Database, EmployeeRepository, ScheduleRepository};
 use core::engine::Engine;
 use core::models::{Employee as CoreEmployee, MonthlySchedule, Role, Sex, Weekday};
 use core::integrations::{generate_xlsx_data, save_xlsx_with_dialog};
+use core::llm::{LlmClient, ScheduleStats};
+use futures_util::StreamExt;
 use std::str::FromStr;
 
 #[derive(Debug, Clone)]
 pub enum Message {
     Tick,
-    ImportComplete(Result<String, String>), // Success message or Error message
-    ExportComplete(Result<String, String>), // Success message or Error message
+    ImportComplete(Result<String, String>),
+    ExportComplete(Result<String, String>),
+    PdfExportComplete(Result<String, String>),
     ToastTimeout(u64),
     CloseToast(u64),
     ActionBar(ActionBarMessage),
     AttendanceTable(AttendanceTableMessage),
     TopBar(TopBarMessage),
     Modal(ModalMessage),
+    LlmReportStreamChunk(String),
+    LlmReportStreamError(String),
+    LlmReportStreamComplete,
 }
 
 pub fn main() -> iced::Result {
+    // Load .env file so GROQ_API_KEY and other env vars are available
+    let _ = dotenvy::dotenv();
+
     iced::application(RostrApp::new, RostrApp::update, RostrApp::view)
         .title("rostr")
         .theme(RostrApp::theme)
@@ -333,6 +342,122 @@ impl RostrApp {
         }
     }
 
+    fn calculate_llm_stats(&self) -> ScheduleStats {
+        let employees = &self.attendance_table.employees;
+        let total_employees = employees.len();
+        let mut total_males = 0;
+        let mut total_females = 0;
+        let mut males_per_day = vec![0usize; 5];
+        let mut females_per_day = vec![0usize; 5];
+        let mut roles_per_day: Vec<std::collections::HashMap<String, usize>> = vec![std::collections::HashMap::new(); 5];
+        let mut daily_attendance = [0usize; 5];
+        let mut daily_remote = [0usize; 5];
+
+        for employee in employees {
+            if employee.sex == "Male" {
+                total_males += 1;
+            } else if employee.sex == "Female" {
+                total_females += 1;
+            }
+
+            for (day, status) in employee.attendance.iter().enumerate() {
+                match status {
+                    attendance_table::AttendanceStatus::Office => {
+                        daily_attendance[day] += 1;
+
+                        if employee.sex == "Male" {
+                            males_per_day[day] += 1;
+                        } else if employee.sex == "Female" {
+                            females_per_day[day] += 1;
+                        }
+
+                        *roles_per_day[day].entry(employee.role.clone()).or_insert(0) += 1;
+                    }
+                    attendance_table::AttendanceStatus::Remote => {
+                        daily_remote[day] += 1;
+                    }
+                    attendance_table::AttendanceStatus::NA => {}
+                }
+            }
+        }
+
+        let days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+        let mut max_day_idx = 0;
+        let mut min_day_idx = 0;
+        for i in 1..5 {
+            if daily_attendance[i] > daily_attendance[max_day_idx] {
+                max_day_idx = i;
+            }
+            if daily_attendance[i] < daily_attendance[min_day_idx] {
+                min_day_idx = i;
+            }
+        }
+
+        let mut daily_office_percentage = vec![0.0f32; 5];
+        let mut daily_remote_percentage = vec![0.0f32; 5];
+        
+        for i in 0..5 {
+            let total_for_day = daily_attendance[i] + daily_remote[i];
+            if total_for_day > 0 {
+                daily_office_percentage[i] = (daily_attendance[i] as f32 / total_for_day as f32) * 100.0;
+                daily_remote_percentage[i] = (daily_remote[i] as f32 / total_for_day as f32) * 100.0;
+            }
+        }
+
+        let office_seat_capacity = 100usize;
+        let mut office_utilization_per_day = vec![0.0f32; 5];
+        for i in 0..5 {
+             office_utilization_per_day[i] = (daily_attendance[i] as f32 / office_seat_capacity as f32) * 100.0;
+        }
+
+        ScheduleStats {
+            date: self.current_date.format("%B %Y").to_string(),
+            total_employees,
+            total_males,
+            total_females,
+            males_per_day,
+            females_per_day,
+            roles_per_day,
+            day_most_attendance: days[max_day_idx].to_string(),
+            day_least_attendance: days[min_day_idx].to_string(),
+            daily_remote_percentage,
+            daily_office_percentage,
+            office_utilization_per_day,
+            office_seat_capacity,
+        }
+    }
+
+    fn start_llm_report_streaming(&self, stats: ScheduleStats) -> Task<Message> {
+        let api_key = std::env::var("GROQ_API_KEY").unwrap_or_else(|_| String::new());
+
+        if api_key.is_empty() {
+             return Task::perform(
+                async move {
+                    Message::Modal(ModalMessage::LlmStreamError("GROQ_API_KEY not found in environment. Please add it to your .env file.".to_string()))
+                },
+                |msg| msg,
+            );
+        }
+
+        Task::stream(async_stream::stream! {
+            let client = LlmClient::new(api_key);
+            let stream = client.stream_report(stats);
+            futures_util::pin_mut!(stream);
+
+            while let Some(result) = stream.next().await {
+                match result {
+                    Ok(chunk) => yield Message::LlmReportStreamChunk(chunk),
+                    Err(e) => {
+                        yield Message::LlmReportStreamError(e);
+                        return;
+                    }
+                }
+            }
+
+            yield Message::LlmReportStreamComplete;
+        })
+    }
+
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Tick => {},
@@ -346,6 +471,12 @@ impl RostrApp {
                 match result {
                     Ok(msg) => return self.show_toast("Export Successful".to_string(), msg, Status::Export),
                     Err(e) => return self.show_toast("Export Failed".to_string(), e, Status::Error),
+                }
+            },
+            Message::PdfExportComplete(result) => {
+                match result {
+                    Ok(msg) => return self.show_toast("PDF Export Successful".to_string(), msg, Status::Success),
+                    Err(e) => return self.show_toast("PDF Export Failed".to_string(), e, Status::Error),
                 }
             },
             Message::ToastTimeout(id) => {
@@ -380,6 +511,27 @@ impl RostrApp {
                      }
                 }
                 ActionBarMessage::Report => {
+                    // Check if there's a saved schedule for the current month
+                    let has_schedule = if let Some(db) = &self.database {
+                        if let Ok(conn) = db.get_connection() {
+                            ScheduleRepository::find_by_year_month(&conn, self.current_date.year(), self.current_date.month())
+                                .map(|opt| opt.is_some())
+                                .unwrap_or(false)
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    };
+
+                    if !has_schedule {
+                        return self.show_toast(
+                            "No Schedule".to_string(),
+                            "Please generate and save a schedule before creating a report.".to_string(),
+                            Status::Error,
+                        );
+                    }
+
                     if let Some(idx) = self.attendance_table.selected_employee {
                         if let Some(employee) = self.attendance_table.employees.get(idx) {
                              let mut employee_clone = employee.clone();
@@ -437,7 +589,7 @@ impl RostrApp {
                                                      .unwrap_or_default()
                                                      .format("%B %Y")
                                                      .to_string();
-                                                     
+                                                 
                                                  let mut attendance = [AttendanceStatus::NA; 5];
                                                  
                                                  for (i, day) in weekdays.iter().enumerate() {
@@ -463,8 +615,12 @@ impl RostrApp {
                              self.modal = Modal::EmployeeReport(employee_clone, report_date_str);
                         }
                     } else {
-                        let data = self.calculate_report();
-                        self.modal = Modal::GeneralReport(data);
+                        // Open LLM report modal and start streaming
+                        let stats = self.calculate_llm_stats();
+                        self.modal = Modal::LlmReport(LlmReportState::default());
+                        
+                        // Return a task to start streaming
+                        return self.start_llm_report_streaming(stats);
                     }
                 }
                 ActionBarMessage::Generate => {
@@ -633,7 +789,24 @@ impl RostrApp {
                     self.modal = Modal::None;
                 }
                 ModalMessage::DownloadPdf => {
-                    return self.show_toast("Download PDF".to_string(), "PDF Download started...".to_string(), Status::Success);
+                    if let Modal::LlmReport(state) = &self.modal {
+                        if !state.report_content.is_empty() {
+                            let content = state.report_content.clone();
+                            let month = self.current_date.format("%B_%Y").to_string();
+                            let suggested_filename = format!("Attendance_Report_{}.pdf", month);
+                            
+                            match core::pdf::generate_pdf_data(&content) {
+                                Ok(data) => {
+                                    return Task::perform(async move {
+                                        core::pdf::save_pdf_with_dialog(suggested_filename, data).await
+                                            .map(|_| "Report has been saved.".to_string())
+                                    }, Message::PdfExportComplete);
+                                }
+                                Err(e) => return self.show_toast("PDF Error".to_string(), e, Status::Error),
+                            }
+                        }
+                    }
+                    return self.show_toast("No Content".to_string(), "No report content to download.".to_string(), Status::Error);
                 }
                 ModalMessage::ResetApp => {
                     self.modal = Modal::ConfirmResetApp;
@@ -948,7 +1121,26 @@ impl RostrApp {
                         }
                     }
                 }
+                ModalMessage::CancelLlmReport => {
+                    self.modal = Modal::None;
+                }
                 _ => {}
+            }
+            Message::LlmReportStreamChunk(chunk) => {
+                if let Modal::LlmReport(state) = &mut self.modal {
+                    state.report_content.push_str(&chunk);
+                }
+            }
+            Message::LlmReportStreamError(error) => {
+                if let Modal::LlmReport(state) = &mut self.modal {
+                    state.is_streaming = false;
+                    state.stream_error = Some(error);
+                }
+            }
+            Message::LlmReportStreamComplete => {
+                if let Modal::LlmReport(state) = &mut self.modal {
+                    state.is_streaming = false;
+                }
             }
         }
         Task::none()
