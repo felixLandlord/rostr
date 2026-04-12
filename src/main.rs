@@ -476,7 +476,12 @@ impl RostrApp {
             Message::PdfExportComplete(result) => {
                 match result {
                     Ok(msg) => return self.show_toast("PDF Export Successful".to_string(), msg, Status::Success),
-                    Err(e) => return self.show_toast("PDF Export Failed".to_string(), e, Status::Error),
+                    Err(e) => {
+                        if e == "Save cancelled by user" {
+                            return Task::none();
+                        }
+                        return self.show_toast("PDF Export Failed".to_string(), e, Status::Error);
+                    }
                 }
             },
             Message::ToastTimeout(id) => {

@@ -89,7 +89,7 @@ pub async fn save_pdf_with_dialog(
                 Err(e) => Err(format!("Failed to write PDF file: {}", e)),
             }
         }
-        None => Ok(()), // User cancellation
+        None => Err("Save cancelled by user".to_string()),
     }
 }
 
