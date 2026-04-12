@@ -1,14 +1,16 @@
 use iced::widget::{button, column, container, row, scrollable, text};
 use iced::task::Task;
-use iced::{Alignment, Color, Element, Length, Theme};
+use iced::{Alignment, Color, Element, Length, Theme, Padding};
 use std::time::Duration;
 
-use crate::theme;
+use crate::ui::theme;
+use crate::core::models::types::Weekday;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AttendanceStatus {
     Office,
     Remote,
+    NA,
 }
 
 impl AttendanceStatus {
@@ -16,17 +18,20 @@ impl AttendanceStatus {
         match self {
             Self::Office => Self::Remote,
             Self::Remote => Self::Office,
+            Self::NA => Self::NA, // Not toggleable
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct Employee {
+    pub id: i32,
     pub name: String,
     pub role: String,
     pub sex: String,
     pub days_per_week: u8,
-    pub mentee: Option<String>,
+    pub fixed_days: Vec<Weekday>,
+    pub mentee: Vec<String>,
     pub mentor: Option<String>,
     pub attendance: [AttendanceStatus; 5], // Mon-Fri
     pub past_attendance: Vec<(String, [AttendanceStatus; 5])>, // Label (e.g. "Dec 2025") and attendance
@@ -47,94 +52,14 @@ pub enum Message {
 
 impl AttendanceTable {
     pub fn new() -> Self {
-        // Dummy data
-        let employees = vec![
-            Employee {
-                name: "Sarah Jenkins".to_string(),
-                role: "UX Designer".to_string(),
-                sex: "Female".to_string(),
-                days_per_week: 5,
-                mentee: None,
-                mentor: None,
-                attendance: [
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                ],
-                past_attendance: vec![
-                    (
-                        "Dec 2025".to_string(),
-                        [
-                            AttendanceStatus::Remote,
-                            AttendanceStatus::Office,
-                            AttendanceStatus::Office,
-                            AttendanceStatus::Remote,
-                            AttendanceStatus::Office,
-                        ]
-                    ),
-                    (
-                        "Nov 2025".to_string(),
-                        [
-                            AttendanceStatus::Office,
-                            AttendanceStatus::Remote,
-                            AttendanceStatus::Office,
-                            AttendanceStatus::Office,
-                            AttendanceStatus::Remote,
-                        ]
-                    )
-                ],
-            },
-            Employee {
-                name: "Michael Ross".to_string(),
-                role: "Product Manager".to_string(),
-                sex: "Male".to_string(),
-                days_per_week: 5,
-                mentee: None,
-                mentor: None,
-                attendance: [
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Office,
-                ],
-                past_attendance: vec![],
-            },
-            Employee {
-                name: "Emily Chen".to_string(),
-                role: "Frontend Dev".to_string(),
-                sex: "Female".to_string(),
-                days_per_week: 5,
-                mentee: None,
-                mentor: None,
-                attendance: [
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Remote,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Office,
-                    AttendanceStatus::Remote,
-                ],
-                past_attendance: vec![
-                     (
-                        "Dec 2025".to_string(),
-                        [
-                            AttendanceStatus::Office,
-                            AttendanceStatus::Office,
-                            AttendanceStatus::Office,
-                            AttendanceStatus::Office,
-                            AttendanceStatus::Office,
-                        ]
-                    )
-                ],
-            },
-        ];
-
         Self {
-            employees,
+            employees: Vec::new(),
             selected_employee: None,
         }
+    }
+
+    pub fn len(&self) -> usize {
+        self.employees.len()
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -173,11 +98,7 @@ impl AttendanceTable {
         }
     }
 
-    pub fn len(&self) -> usize {
-        self.employees.len()
-    }
-
-    pub fn view(&self, is_dark: bool) -> Element<'_, Message> {
+    pub fn view(&self, is_dark: bool, is_read_only: bool) -> Element<'_, Message> {
         let days = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"];
 
         // Header
@@ -188,7 +109,7 @@ impl AttendanceTable {
                 .padding([16, 8])
                 .style(move |_theme: &Theme| container::Style {
                     border: iced::border::Border {
-                        color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
+                        color: if is_dark { theme::TABLE_BORDER_DARK } else { theme::TABLE_BORDER_LIGHT },
                         width: 1.0,
                         radius: iced::border::Radius {
                             top_left: 12.0,
@@ -213,7 +134,7 @@ impl AttendanceTable {
             .padding([17, 32])
             .style(move |_theme: &Theme| container::Style {
                 border: iced::border::Border {
-                    color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
+                    color: if is_dark { theme::TABLE_BORDER_DARK } else { theme::TABLE_BORDER_LIGHT },
                     width: 1.0,
                     radius: 0.0.into(),
                 },
@@ -235,7 +156,7 @@ impl AttendanceTable {
             .padding([16, 16])
             .style(move |_t: &Theme| container::Style {
                  border: iced::border::Border {
-                    color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT }, // Approximation
+                    color: if is_dark { theme::TABLE_BORDER_DARK } else { theme::TABLE_BORDER_LIGHT }, // Approximation
                     width: 1.0,
                     radius: if is_last {
                         iced::border::Radius {
@@ -264,46 +185,48 @@ impl AttendanceTable {
                     let is_selected = self.selected_employee == Some(emp_idx);
 
                     let checkbox_cell = container(
-                        button(
-                            container(
-                                if is_selected {
-                                    container("")
-                                        .width(10)
-                                        .height(10)
-                                        .style(|_t: &Theme| container::Style {
-                                            background: Some(theme::PRIMARY.into()), // Green dot
-                                            border: iced::border::Border {
-                                                radius: 5.0.into(),
+                        {
+                            let btn = button(
+                                container(
+                                    if is_selected {
+                                        container("")
+                                            .width(10)
+                                            .height(10)
+                                            .style(|_t: &Theme| container::Style {
+                                                background: Some(theme::PRIMARY.into()), // Green dot
+                                                border: iced::border::Border {
+                                                    radius: 5.0.into(),
+                                                    ..Default::default()
+                                                },
                                                 ..Default::default()
-                                            },
-                                            ..Default::default()
-                                        })
-                                } else {
-                                    container("").width(0).height(0)
-                                }
-                            )
-                            .width(20)
-                            .height(20)
-                            .align_x(Alignment::Center)
-                            .align_y(Alignment::Center)
-                            .style(move |theme: &Theme| container::Style {
-                                border: iced::border::Border {
-                                    color: if is_selected {
-                                        theme::PRIMARY
+                                            })
                                     } else {
-                                        if theme == &Theme::Dark {
-                                            theme::BORDER_DARK
+                                        container("").width(0).height(0)
+                                    }
+                                )
+                                .width(20)
+                                .height(20)
+                                .align_x(Alignment::Center)
+                                .align_y(Alignment::Center)
+                                .style(move |theme: &Theme| container::Style {
+                                    border: iced::border::Border {
+                                        color: if is_selected {
+                                            theme::PRIMARY
                                         } else {
-                                            theme::BORDER_LIGHT
-                                        }
+                                            if theme == &Theme::Dark {
+                                                theme::BORDER_DARK
+                                            } else {
+                                                theme::BORDER_LIGHT
+                                            }
+                                        },
+                                        width: 1.5,
+                                        radius: 4.0.into(),
                                     },
-                                    width: 1.5,
-                                    radius: 4.0.into(),
-                                },
-                                ..Default::default()
-                            })
-                        )
-                        .on_press(Message::SelectEmployee(emp_idx))
+                                    ..Default::default()
+                                })
+                            );
+                            if is_read_only { btn } else { btn.on_press(Message::SelectEmployee(emp_idx)) }
+                        }
                         .padding(0)
                         .style(|_, _| button::Style::default()) // No default button bg
                     )
@@ -314,7 +237,7 @@ impl AttendanceTable {
                     .style(move |theme: &Theme| container::Style {
                         background: Some(theme.palette().background.into()),
                         border: iced::border::Border {
-                            color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
+                            color: if is_dark { theme::TABLE_BORDER_DARK } else { theme::TABLE_BORDER_LIGHT },
                             width: 1.0,
                             radius: 0.0.into(),
                         },
@@ -339,13 +262,13 @@ impl AttendanceTable {
                     .width(Length::FillPortion(2))
                     .padding([16, 32])
                     .style(move |theme: &Theme| container::Style {
-                         background: Some(theme.palette().background.into()),
-                         border: iced::border::Border {
-                            color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
+                        background: Some(theme.palette().background.into()),
+                        border: iced::border::Border {
+                            color: if is_dark { theme::TABLE_BORDER_DARK } else { theme::TABLE_BORDER_LIGHT },
                             width: 1.0,
                             radius: 0.0.into(),
                         },
-                         ..Default::default()
+                        ..Default::default()
                     });
 
                     let day_cells = row(
@@ -375,46 +298,57 @@ impl AttendanceTable {
                                         Color::from_rgb(0.9, 0.9, 0.9) // Gray 200
                                     },
                                 ),
+                                AttendanceStatus::NA => (
+                                    "N/A",
+                                    Color::TRANSPARENT,
+                                    if is_dark { theme::TEXT_MUTED_DARK } else { theme::TEXT_MUTED_LIGHT },
+                                    if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
+                                ),
                             };
 
-                            container(
-                                button(
-                                    text(label)
-                                        .size(11)
-                                        .font(iced::font::Font {
-                                            weight: iced::font::Weight::Bold,
-                                            ..Default::default()
-                                        })
-                                        .align_x(Alignment::Center)
-                                )
-                                .on_press(Message::ToggleStatus(emp_idx, day_idx))
-                                .padding([6, 16])
-                                .style(move |_t: &Theme, status| {
-                                    let base = button::Style {
-                                        background: Some(bg_color.into()),
-                                        text_color,
-                                        border: iced::border::Border {
-                                            color: border_color,
-                                            width: 1.0,
-                                            radius: 999.0.into(),
-                                        },
+                            let btn = button(
+                                text(label)
+                                    .size(11)
+                                    .font(iced::font::Font {
+                                        weight: iced::font::Weight::Bold,
                                         ..Default::default()
-                                    };
-                                    match status {
-                                        button::Status::Hovered => button::Style {
-                                            background: Some(Color { a: bg_color.a * 1.5, ..bg_color }.into()), // Slightly darker/more opaque
-                                            ..base
-                                        },
-                                        _ => base,
-                                    }
-                                })
+                                    })
+                                    .align_x(Alignment::Center)
                             )
+                            .padding([6, 16])
+                            .style(move |_t: &Theme, status| {
+                                let base = button::Style {
+                                    background: Some(bg_color.into()),
+                                    text_color,
+                                    border: iced::border::Border {
+                                        color: border_color,
+                                        width: 1.0,
+                                        radius: 999.0.into(),
+                                    },
+                                    ..Default::default()
+                                };
+                                match status {
+                                    button::Status::Hovered => button::Style {
+                                        background: Some(Color { a: if bg_color.a == 0.0 { 0.1 } else { bg_color.a * 1.5 }, ..bg_color }.into()),
+                                        ..base
+                                    },
+                                    _ => base,
+                                }
+                            });
+                            
+                            let btn = if *status == AttendanceStatus::NA || is_read_only {
+                                btn // No on_press for NA or when read-only
+                            } else {
+                                btn.on_press(Message::ToggleStatus(emp_idx, day_idx))
+                            };
+
+                            container(btn)
                             .width(Length::Fill)
                             .align_x(Alignment::Center)
                             .padding([12, 16])
                             .style(move |_t: &Theme| container::Style {
                                 border: iced::border::Border {
-                                    color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
+                                    color: if is_dark { theme::TABLE_BORDER_DARK } else { theme::TABLE_BORDER_LIGHT },
                                     width: 1.0,
                                     radius: 0.0.into(),
                                 },
@@ -442,7 +376,7 @@ impl AttendanceTable {
                 .padding([16, 8])
                 .style(move |_theme: &Theme| container::Style {
                     border: iced::border::Border {
-                        color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
+                        color: if is_dark { theme::TABLE_BORDER_DARK } else { theme::TABLE_BORDER_LIGHT },
                         width: 1.0,
                         radius: iced::border::Radius {
                             top_left: 0.0,
@@ -468,7 +402,7 @@ impl AttendanceTable {
             .padding([16, 32])
             .style(move |_theme: &Theme| container::Style {
                 border: iced::border::Border {
-                    color: if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT },
+                    color: if is_dark { theme::TABLE_BORDER_DARK } else { theme::TABLE_BORDER_LIGHT },
                     width: 1.0,
                     radius: 0.0.into(),
                 },
@@ -540,7 +474,7 @@ impl AttendanceTable {
                 .height(Length::Fill),
             footer
         ]
-        .width(Length::Fill); // Was fixed
+        .width(Length::Fill);
 
         container(
             content
