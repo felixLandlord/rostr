@@ -104,6 +104,7 @@ impl Database {
         let tx = conn.transaction()?;
         tx.execute("DELETE FROM schedules", [])?;
         tx.execute("DELETE FROM employees", [])?;
+        tx.execute("DELETE FROM settings WHERE key = 'api_key'", [])?;
         tx.commit()?;
         Ok(())
     }
