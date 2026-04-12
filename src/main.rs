@@ -428,14 +428,14 @@ impl RostrApp {
     }
 
     fn get_api_key(&self) -> Option<String> {
-        if let Ok(key) = std::env::var("GROQ_API_KEY") {
-            if !key.is_empty() {
-                return Some(key);
-            }
-        }
         if let Some(db) = &self.database {
             if let Ok(key) = db.get_api_key() {
                 return key;
+            }
+        }
+        if let Ok(key) = std::env::var("GROQ_API_KEY") {
+            if !key.is_empty() {
+                return Some(key);
             }
         }
         None
@@ -548,6 +548,14 @@ impl RostrApp {
                         return self.show_toast(
                             "No Schedule".to_string(),
                             "Please generate and save a schedule before creating a report.".to_string(),
+                            Status::Error,
+                        );
+                    }
+
+                    if self.get_api_key().is_none() {
+                        return self.show_toast(
+                            "No API Key".to_string(),
+                            "Please add your API key in Settings before generating a report.".to_string(),
                             Status::Error,
                         );
                     }
