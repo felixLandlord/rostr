@@ -6,8 +6,9 @@ use iced::widget::{
 };
 use iced::{Alignment, Color, Element, Length, Padding, Renderer, Theme};
 use lucide_icons::iced::{
-    icon_calendar, icon_calendar_check_2, icon_chart_no_axes_column, icon_download, icon_settings,
-    icon_sparkles, icon_trash_2, icon_user_plus, icon_user_round_pen, icon_x,
+    icon_calendar, icon_calendar_check_2, icon_chart_no_axes_column, icon_check, icon_download,
+    icon_eye, icon_eye_off, icon_key, icon_save, icon_settings, icon_sparkles, icon_trash_2,
+    icon_user_plus, icon_user_round_pen, icon_x,
 };
 use std::collections::HashMap;
 
@@ -36,7 +37,7 @@ pub enum Modal {
     GeneralReport(ReportData),
     EmployeeReport(Employee, String),
     LlmReport(LlmReportState),
-    Settings,
+    Settings(SettingsState),
     ConfirmResetApp,
     ConfirmResetSchedules,
     ConfirmResetEmployees,
@@ -50,6 +51,13 @@ pub struct LlmReportState {
     pub is_complete: bool,
 }
 
+#[derive(Debug, Clone)]
+pub struct SettingsState {
+    pub api_key_input: String,
+    pub api_key_visible: bool,
+    pub has_saved_api_key: bool,
+}
+
 impl Default for LlmReportState {
     fn default() -> Self {
         Self {
@@ -57,6 +65,16 @@ impl Default for LlmReportState {
             is_streaming: true,
             stream_error: None,
             is_complete: false,
+        }
+    }
+}
+
+impl Default for SettingsState {
+    fn default() -> Self {
+        Self {
+            api_key_input: String::new(),
+            api_key_visible: false,
+            has_saved_api_key: false,
         }
     }
 }
@@ -151,6 +169,11 @@ pub enum Message {
     LlmStreamError(String),
     LlmStreamComplete,
     CancelLlmReport,
+    ToggleApiKeyVisibility,
+    ApiKeyChanged(String),
+    SaveApiKey,
+    ResetApiKey,
+    HasApiKey(bool),
 }
 
 use crate::core::models::types::{Role, Sex, DAYS_OPTIONS};
@@ -167,7 +190,7 @@ pub fn view<'a>(modal: &'a Modal, is_dark: bool) -> Element<'a, Message> {
         Modal::GeneralReport(data) => general_report_view(data, is_dark),
         Modal::EmployeeReport(employee, date_str) => employee_report_view(employee, date_str, is_dark),
         Modal::LlmReport(state) => llm_report_view(state, is_dark),
-        Modal::Settings => settings_view(is_dark),
+        Modal::Settings(state) => settings_view(state, is_dark),
         Modal::ConfirmResetApp => confirm_reset_view("Reset Application", "This will delete ALL data including employees and schedules. This action cannot be undone.", Message::ConfirmResetAppAction, is_dark),
         Modal::ConfirmResetSchedules => confirm_reset_view("Reset Schedules", "This will delete ALL schedules. This action cannot be undone.", Message::ConfirmResetSchedulesAction, is_dark),
         Modal::ConfirmResetEmployees => confirm_reset_view("Reset Employees", "This will delete ALL employees and their associated schedules. This action cannot be undone.", Message::ConfirmResetEmployeesAction, is_dark),
@@ -699,7 +722,7 @@ fn llm_report_view<'a>(state: &'a LlmReportState, is_dark: bool) -> Element<'a, 
                     color: Some(theme::ERROR)
                 }),
             ]
-            .spacing(12)
+            .spacing(12),
         )
         .width(Length::Fill)
         .height(Length::Fill)
@@ -707,7 +730,7 @@ fn llm_report_view<'a>(state: &'a LlmReportState, is_dark: bool) -> Element<'a, 
         .align_y(Alignment::Center)
         .into()
     } else if state.is_streaming && state.report_content.is_empty() {
-         container(
+        container(
             column![
                 text("Consulting AI expert...")
                     .size(16)
@@ -715,7 +738,7 @@ fn llm_report_view<'a>(state: &'a LlmReportState, is_dark: bool) -> Element<'a, 
                         weight: iced::font::Weight::Semibold,
                         ..Default::default()
                     }),
-                 text("Synthesizing scheduling insights...")
+                text("Synthesizing scheduling insights...")
                     .size(13)
                     .style(move |_t: &Theme| text::Style {
                         color: Some(if is_dark {
@@ -726,7 +749,7 @@ fn llm_report_view<'a>(state: &'a LlmReportState, is_dark: bool) -> Element<'a, 
                     }),
             ]
             .spacing(12)
-            .align_x(Alignment::Center)
+            .align_x(Alignment::Center),
         )
         .width(Length::Fill)
         .height(Length::Fill)
@@ -841,10 +864,10 @@ fn llm_report_view<'a>(state: &'a LlmReportState, is_dark: bool) -> Element<'a, 
 fn render_markdown<'a>(content: &'a str, is_dark: bool) -> Element<'a, Message> {
     let mut elements = column![].spacing(12).width(Length::Fill);
     let mut lines = content.lines().peekable();
-    
+
     while let Some(line) = lines.next() {
         let line = line.trim_end();
-        
+
         if line.is_empty() {
             elements = elements.push(iced::widget::Space::new().height(Length::Fixed(4.0)));
             continue;
@@ -859,7 +882,11 @@ fn render_markdown<'a>(content: &'a str, is_dark: bool) -> Element<'a, Message> 
                         ..Default::default()
                     })
                     .style(move |_| text::Style {
-                        color: Some(if is_dark { theme::TEXT_DARK } else { theme::TEXT_LIGHT }),
+                        color: Some(if is_dark {
+                            theme::TEXT_DARK
+                        } else {
+                            theme::TEXT_LIGHT
+                        }),
                     }),
             );
         } else if line.starts_with("## ") {
@@ -871,7 +898,11 @@ fn render_markdown<'a>(content: &'a str, is_dark: bool) -> Element<'a, Message> 
                         ..Default::default()
                     })
                     .style(move |_| text::Style {
-                        color: Some(if is_dark { theme::TEXT_DARK } else { theme::TEXT_LIGHT }),
+                        color: Some(if is_dark {
+                            theme::TEXT_DARK
+                        } else {
+                            theme::TEXT_LIGHT
+                        }),
                     }),
             );
         } else if line.starts_with("### ") {
@@ -888,11 +919,19 @@ fn render_markdown<'a>(content: &'a str, is_dark: bool) -> Element<'a, Message> 
             );
         } else if line.starts_with("---") {
             elements = elements.push(
-                container(iced::widget::Space::new().width(Length::Fill).height(1))
-                    .style(move |_| container::Style {
-                        background: Some(if is_dark { theme::BORDER_DARK } else { theme::BORDER_LIGHT }.into()),
+                container(iced::widget::Space::new().width(Length::Fill).height(1)).style(
+                    move |_| container::Style {
+                        background: Some(
+                            if is_dark {
+                                theme::BORDER_DARK
+                            } else {
+                                theme::BORDER_LIGHT
+                            }
+                            .into(),
+                        ),
                         ..Default::default()
-                    })
+                    },
+                ),
             );
         } else if line.starts_with("- ") || line.starts_with("* ") {
             elements = elements.push(
@@ -909,26 +948,28 @@ fn render_markdown<'a>(content: &'a str, is_dark: bool) -> Element<'a, Message> 
             // Table handling
             let mut headers = Vec::new();
             let mut table_rows = Vec::new();
-            
+
             // Parse header
-            headers = line.split('|')
+            headers = line
+                .split('|')
                 .map(|s| s.trim())
                 .filter(|s| !s.is_empty())
                 .map(|s| process_inline_formatting(s))
                 .collect();
-            
+
             // Skip separator line if present
             if let Some(next) = lines.peek() {
                 if next.contains("---") && next.contains("|") {
                     lines.next();
                 }
             }
-            
+
             // Parse rows
             while let Some(next) = lines.peek() {
                 if next.starts_with("|") {
                     let row_line = lines.next().unwrap();
-                    let row_data: Vec<String> = row_line.split('|')
+                    let row_data: Vec<String> = row_line
+                        .split('|')
                         .map(|s| s.trim())
                         .filter(|s| !s.is_empty())
                         .map(|s| process_inline_formatting(s))
@@ -940,7 +981,7 @@ fn render_markdown<'a>(content: &'a str, is_dark: bool) -> Element<'a, Message> 
                     break;
                 }
             }
-            
+
             if !headers.is_empty() {
                 elements = elements.push(table_view("", headers, table_rows, is_dark));
             }
@@ -951,7 +992,11 @@ fn render_markdown<'a>(content: &'a str, is_dark: bool) -> Element<'a, Message> 
                     .size(14)
                     .line_height(iced::widget::text::LineHeight::Relative(1.5))
                     .style(move |_| text::Style {
-                        color: Some(if is_dark { theme::TEXT_DARK } else { theme::TEXT_LIGHT }),
+                        color: Some(if is_dark {
+                            theme::TEXT_DARK
+                        } else {
+                            theme::TEXT_LIGHT
+                        }),
                     })
                     .width(Length::Fill),
             );
@@ -1966,7 +2011,7 @@ fn input_group<'a>(
     .into()
 }
 
-fn settings_view<'a>(is_dark: bool) -> Element<'a, Message> {
+fn settings_view<'a>(state: &'a SettingsState, is_dark: bool) -> Element<'a, Message> {
     let header = row![
         row![
             container(icon_settings().size(20).style(move |_| text::Style {
@@ -2009,6 +2054,47 @@ fn settings_view<'a>(is_dark: bool) -> Element<'a, Message> {
     let content = column![
         header,
         column![
+            text("AI API Key")
+                .size(14)
+                .font(iced::font::Font {
+                    weight: iced::font::Weight::Bold,
+                    ..Default::default()
+                })
+                .style(move |_| text::Style {
+                    color: Some(if is_dark {
+                        theme::TEXT_MUTED_DARK
+                    } else {
+                        theme::TEXT_MUTED_LIGHT
+                    })
+                }),
+            text("Required for generating AI reports")
+                .size(12)
+                .style(move |_| text::Style {
+                    color: Some(if is_dark {
+                        theme::TEXT_MUTED_DARK
+                    } else {
+                        theme::TEXT_MUTED_LIGHT
+                    })
+                }),
+            api_key_input_row(state, is_dark),
+            api_key_saved_indicator(state, is_dark),
+        ]
+        .spacing(12)
+        .padding([16, 0]),
+        column![
+            text("Danger Zone")
+                .size(14)
+                .font(iced::font::Font {
+                    weight: iced::font::Weight::Bold,
+                    ..Default::default()
+                })
+                .style(move |_| text::Style {
+                    color: Some(if is_dark {
+                        theme::TOAST_ERROR
+                    } else {
+                        theme::TOAST_ERROR
+                    })
+                }),
             settings_button(
                 "Reset Application",
                 "Clear all data and start fresh",
@@ -2032,12 +2118,132 @@ fn settings_view<'a>(is_dark: bool) -> Element<'a, Message> {
             ),
         ]
         .spacing(12)
+        .padding([16, 0]),
     ]
     .spacing(24)
     .padding([24, 32]);
 
     let card = modal_card(content, 600.0, is_dark);
     backdrop(card)
+}
+
+fn api_key_saved_indicator<'a>(state: &'a SettingsState, _is_dark: bool) -> Element<'a, Message> {
+    if state.has_saved_api_key {
+        row![
+            icon_check().size(16).style(move |_| text::Style {
+                color: Some(theme::PRIMARY)
+            }),
+            text("API key is saved")
+                .size(12)
+                .style(move |_| text::Style {
+                    color: Some(theme::PRIMARY)
+                }),
+        ]
+        .spacing(8)
+        .into()
+    } else {
+        Space::new().height(Length::Fixed(24.0)).into()
+    }
+}
+
+fn api_key_input_row<'a>(state: &'a SettingsState, is_dark: bool) -> Element<'a, Message> {
+    let eye_icon = if state.api_key_visible {
+        icon_eye_off()
+    } else {
+        icon_eye()
+    };
+    let action_icon = if state.has_saved_api_key {
+        icon_trash_2().size(18)
+    } else {
+        icon_save().size(18)
+    };
+    let placeholder = "Enter API key...";
+    let input = text_input(placeholder, &state.api_key_input)
+        .on_input(Message::ApiKeyChanged)
+        .padding(12);
+
+    let key_icon_container = if state.has_saved_api_key {
+        container(
+            button(icon_key().size(16).style(move |_| text::Style {
+                color: Some(theme::PRIMARY),
+            }))
+            .on_press(Message::SaveApiKey)
+            .style(move |_t, _s| button::Style {
+                background: None,
+                ..Default::default()
+            }),
+        )
+        .padding(4)
+    } else {
+        container(Space::new())
+            .width(Length::Fixed(32.0))
+            .height(Length::Fixed(32.0))
+    };
+
+    row![
+        input.style(move |t, s| theme::text_input_style(t, s, is_dark)),
+        container(
+            button(eye_icon)
+                .on_press(Message::ToggleApiKeyVisibility)
+                .style(move |_t, _s| button::Style {
+                    background: None,
+                    ..Default::default()
+                })
+        )
+        .padding(4),
+        key_icon_container,
+        container(
+            button(action_icon.style(move |_| text::Style {
+                color: Some(if state.has_saved_api_key {
+                    theme::PRIMARY
+                } else if !state.api_key_input.is_empty() {
+                    theme::PRIMARY
+                } else {
+                    if is_dark {
+                        theme::TEXT_MUTED_DARK
+                    } else {
+                        theme::TEXT_MUTED_LIGHT
+                    }
+                })
+            }))
+            .on_press(if state.has_saved_api_key {
+                Message::ResetApiKey
+            } else {
+                Message::SaveApiKey
+            })
+            .style(move |_t, _s| button::Style {
+                background: None,
+                ..Default::default()
+            })
+        )
+        .padding(4)
+        .style(move |_| container::Style {
+            background: Some(
+                if state.has_saved_api_key || !state.api_key_input.is_empty() {
+                    Color::from_rgba(0.196, 0.505, 0.498, 0.1).into()
+                } else {
+                    Color::from_rgba(0.0, 0.0, 0.0, 0.0).into()
+                }
+            ),
+            border: iced::border::Border {
+                radius: 8.0.into(),
+                width: 1.0,
+                color: if state.has_saved_api_key || !state.api_key_input.is_empty() {
+                    theme::PRIMARY
+                } else {
+                    if is_dark {
+                        theme::BORDER_DARK
+                    } else {
+                        theme::BORDER_LIGHT
+                    }
+                },
+            },
+            ..Default::default()
+        }),
+    ]
+    .spacing(8)
+    .align_y(Alignment::Center)
+    .into()
 }
 
 fn settings_button<'a>(

@@ -3,7 +3,7 @@ mod ui;
 
 use ui::attendance_table::{self, AttendanceTable, Message as AttendanceTableMessage, Employee as UIEmployee, AttendanceStatus};
 use ui::action_bar::{ActionBar, Message as ActionBarMessage};
-use ui::modals::{self, Modal, Message as ModalMessage, EmployeeForm, ReportData, LlmReportState};
+use ui::modals::{self, Modal, Message as ModalMessage, EmployeeForm, ReportData, LlmReportState, SettingsState};
 use ui::toasts::{self, Toast, Status};
 use chrono::{Datelike, Local, NaiveDate};
 use iced::task::Task;
@@ -427,17 +427,32 @@ impl RostrApp {
         }
     }
 
-    fn start_llm_report_streaming(&self, stats: ScheduleStats) -> Task<Message> {
-        let api_key = std::env::var("GROQ_API_KEY").unwrap_or_else(|_| String::new());
-
-        if api_key.is_empty() {
-             return Task::perform(
-                async move {
-                    Message::Modal(ModalMessage::LlmStreamError("GROQ_API_KEY not found in environment. Please add it to your .env file.".to_string()))
-                },
-                |msg| msg,
-            );
+    fn get_api_key(&self) -> Option<String> {
+        if let Ok(key) = std::env::var("GROQ_API_KEY") {
+            if !key.is_empty() {
+                return Some(key);
+            }
         }
+        if let Some(db) = &self.database {
+            if let Ok(key) = db.get_api_key() {
+                return key;
+            }
+        }
+        None
+    }
+
+    fn start_llm_report_streaming(&self, stats: ScheduleStats) -> Task<Message> {
+        let api_key = match self.get_api_key() {
+            Some(key) => key,
+            None => {
+                return Task::perform(
+                    async move {
+                        Message::Modal(ModalMessage::LlmStreamError("No API key found. Please add your API key in Settings.".to_string()))
+                    },
+                    |msg| msg,
+                );
+            }
+        };
 
         Task::stream(async_stream::stream! {
             let client = LlmClient::new(api_key);
@@ -782,7 +797,11 @@ impl RostrApp {
                     self.load_schedule_for_date();
                 }
                 TopBarMessage::SettingsPressed => {
-                    self.modal = Modal::Settings;
+                    let mut settings_state = SettingsState::default();
+                    if let Some(db) = &self.database {
+                        settings_state.has_saved_api_key = db.get_api_key().map(|k| k.is_some()).unwrap_or(false);
+                    }
+                    self.modal = Modal::Settings(settings_state);
                 },
                 _ => {}
             },
@@ -1128,6 +1147,71 @@ impl RostrApp {
                 }
                 ModalMessage::CancelLlmReport => {
                     self.modal = Modal::None;
+                }
+                ModalMessage::ToggleApiKeyVisibility => {
+                    if let Modal::Settings(state) = &mut self.modal {
+                        state.api_key_visible = !state.api_key_visible;
+                    }
+                }
+                ModalMessage::ApiKeyChanged(key) => {
+                    if let Modal::Settings(state) = &mut self.modal {
+                        state.api_key_input = key;
+                    }
+                }
+                ModalMessage::SaveApiKey => {
+                    if let Modal::Settings(state) = &mut self.modal {
+                        if !state.api_key_input.is_empty() {
+                            if let Some(db) = &self.database {
+                                match db.save_api_key(&state.api_key_input) {
+                                    Ok(_) => {
+                                        state.has_saved_api_key = true;
+                                        state.api_key_input = String::new();
+                                        return self.show_toast(
+                                            "API Key Saved".to_string(),
+                                            "Your API key has been securely saved.".to_string(),
+                                            Status::Success,
+                                        );
+                                    }
+                                    Err(e) => {
+                                        return self.show_toast(
+                                            "Save Failed".to_string(),
+                                            format!("Failed to save API key: {}", e),
+                                            Status::Error,
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                ModalMessage::ResetApiKey => {
+                    if let Modal::Settings(state) = &mut self.modal {
+                        if let Some(db) = &self.database {
+                            match db.delete_api_key() {
+                                Ok(_) => {
+                                    state.has_saved_api_key = false;
+                                    state.api_key_input = String::new();
+                                    return self.show_toast(
+                                        "API Key Removed".to_string(),
+                                        "Your API key has been removed from storage.".to_string(),
+                                        Status::Delete,
+                                    );
+                                }
+                                Err(e) => {
+                                    return self.show_toast(
+                                        "Reset Failed".to_string(),
+                                        format!("Failed to remove API key: {}", e),
+                                        Status::Error,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                ModalMessage::HasApiKey(_has_key) => {
+                    if let Modal::Settings(state) = &mut self.modal {
+                        state.has_saved_api_key = _has_key;
+                    }
                 }
                 _ => {}
             }
