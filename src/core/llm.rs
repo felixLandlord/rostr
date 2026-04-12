@@ -372,7 +372,7 @@ fn build_report_prompt(stats: &ScheduleStats) -> String {
         .join("\n");
 
     format!(
-        r#"You are a professional HR analyst writing a detailed monthly attendance report. Generate a comprehensive report in GitHub-flavored Markdown for the schedule of {}.
+        r#"You are a professional HR analyst writing a detailed monthly attendance report. Generate a comprehensive report in GitHub-flavored Markdown for the schedule of {}. Report ONLY the data provided - do NOT include any recommendations, suggestions, or advice.
 
 Use the following data to generate insights and analysis:
 
@@ -421,12 +421,12 @@ Use the following data to generate insights and analysis:
 
 Please write a comprehensive report that includes:
 1. A title and executive summary
-2. Key insights about attendance patterns
-3. Analysis of office utilization trends
-4. Gender distribution insights
-5. Overall observations and conclusions
+2. Key insights about attendance patterns (report only, do not give recommendations)
+3. Analysis of office utilization trends (report only, do not give recommendations)
+4. Gender distribution insights (report only, do not give recommendations)
+5. Overall observations and conclusions (report only, do not give any recommendations or suggestions)
 
-Use professional markdown formatting with headers, bullet points, and tables where appropriate. Make it detailed and data-driven."#,
+Use professional markdown formatting with headers, bullet points, and tables where appropriate. Make it detailed and data-driven. Only report the data provided - do not add recommendations, suggestions, or advice."#,
         stats.date,
         stats.total_employees,
         stats.total_males,
