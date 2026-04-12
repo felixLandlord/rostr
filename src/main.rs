@@ -37,8 +37,20 @@ pub enum Message {
     LlmReportStreamComplete,
 }
 
+fn mask_api_key(key: &str) -> String {
+    let char_count = key.chars().count();
+    if char_count <= 8 {
+        "*".repeat(char_count)
+    } else {
+        let chars: Vec<char> = key.chars().collect();
+        let prefix: String = chars[..4].iter().collect();
+        let suffix: String = chars[char_count - 3..].iter().collect();
+        format!("{}*************{}", prefix, suffix)
+    }
+}
+
 pub fn main() -> iced::Result {
-    // Load .env file so GROQ_API_KEY and other env vars are available
+    // Load .env file so GROQ_API_KEY and other env vars is available
     let _ = dotenvy::dotenv();
 
     iced::application(RostrApp::new, RostrApp::update, RostrApp::view)
@@ -807,7 +819,18 @@ impl RostrApp {
                 TopBarMessage::SettingsPressed => {
                     let mut settings_state = SettingsState::default();
                     if let Some(db) = &self.database {
-                        settings_state.has_saved_api_key = db.get_api_key().map(|k| k.is_some()).unwrap_or(false);
+                        match db.get_api_key() {
+                            Ok(Some(key)) => {
+                                settings_state.has_saved_api_key = true;
+                                settings_state.saved_api_key = Some(key.clone());
+                                settings_state.api_key_input = mask_api_key(&key);
+                                settings_state.typing_api_key = key.clone();
+                            }
+                            Ok(None) => {
+                                settings_state.has_saved_api_key = false;
+                            }
+                            Err(_) => {}
+                        }
                     }
                     self.modal = Modal::Settings(settings_state);
                 },
@@ -1158,22 +1181,36 @@ impl RostrApp {
                 }
                 ModalMessage::ToggleApiKeyVisibility => {
                     if let Modal::Settings(state) = &mut self.modal {
-                        state.api_key_visible = !state.api_key_visible;
+                        if !state.has_saved_api_key {
+                            state.api_key_visible = !state.api_key_visible;
+                            if state.api_key_visible {
+                                if let Some(ref key) = state.saved_api_key {
+                                    state.api_key_input = key.clone();
+                                }
+                            } else if let Some(ref key) = state.saved_api_key {
+                                state.api_key_input = mask_api_key(key);
+                            }
+                        }
                     }
                 }
                 ModalMessage::ApiKeyChanged(key) => {
                     if let Modal::Settings(state) = &mut self.modal {
-                        state.api_key_input = key;
+                        state.typing_api_key = key;
+                        state.saved_api_key = None;
                     }
                 }
                 ModalMessage::SaveApiKey => {
                     if let Modal::Settings(state) = &mut self.modal {
-                        if !state.api_key_input.is_empty() {
+                        let key_to_save = state.typing_api_key.trim().to_string();
+                        if !key_to_save.is_empty() {
                             if let Some(db) = &self.database {
-                                match db.save_api_key(&state.api_key_input) {
+                                match db.save_api_key(&key_to_save) {
                                     Ok(_) => {
                                         state.has_saved_api_key = true;
-                                        state.api_key_input = String::new();
+                                        state.saved_api_key = Some(key_to_save.clone());
+                                        state.typing_api_key = key_to_save.clone();
+                                        state.api_key_input = mask_api_key(&key_to_save);
+                                        state.api_key_visible = false;
                                         return self.show_toast(
                                             "API Key Saved".to_string(),
                                             "Your API key has been securely saved.".to_string(),
@@ -1198,7 +1235,9 @@ impl RostrApp {
                             match db.delete_api_key() {
                                 Ok(_) => {
                                     state.has_saved_api_key = false;
+                                    state.saved_api_key = None;
                                     state.api_key_input = String::new();
+                                    state.typing_api_key = String::new();
                                     return self.show_toast(
                                         "API Key Removed".to_string(),
                                         "Your API key has been removed from storage.".to_string(),

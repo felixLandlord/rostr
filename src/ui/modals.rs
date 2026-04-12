@@ -12,6 +12,18 @@ use lucide_icons::iced::{
 };
 use std::collections::HashMap;
 
+fn mask_api_key_display(key: &str) -> String {
+    let char_count = key.chars().count();
+    if char_count <= 8 {
+        "*".repeat(char_count)
+    } else {
+        let chars: Vec<char> = key.chars().collect();
+        let prefix: String = chars[..4].iter().collect();
+        let suffix: String = chars[char_count - 3..].iter().collect();
+        format!("{}*************{}", prefix, suffix)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ReportData {
     pub date: String,
@@ -56,6 +68,8 @@ pub struct SettingsState {
     pub api_key_input: String,
     pub api_key_visible: bool,
     pub has_saved_api_key: bool,
+    pub saved_api_key: Option<String>,
+    pub typing_api_key: String,
 }
 
 impl Default for LlmReportState {
@@ -75,6 +89,8 @@ impl Default for SettingsState {
             api_key_input: String::new(),
             api_key_visible: false,
             has_saved_api_key: false,
+            saved_api_key: None,
+            typing_api_key: String::new(),
         }
     }
 }
@@ -2148,9 +2164,9 @@ fn api_key_saved_indicator<'a>(state: &'a SettingsState, _is_dark: bool) -> Elem
 
 fn api_key_input_row<'a>(state: &'a SettingsState, is_dark: bool) -> Element<'a, Message> {
     let eye_icon = if state.api_key_visible {
-        icon_eye_off()
-    } else {
         icon_eye()
+    } else {
+        icon_eye_off()
     };
     let action_icon = if state.has_saved_api_key {
         icon_trash_2().size(18)
@@ -2158,9 +2174,42 @@ fn api_key_input_row<'a>(state: &'a SettingsState, is_dark: bool) -> Element<'a,
         icon_save().size(18)
     };
     let placeholder = "Enter API key...";
-    let input = text_input(placeholder, &state.api_key_input)
-        .on_input(Message::ApiKeyChanged)
-        .padding(12);
+
+    let (display_value, is_secure) = if state.has_saved_api_key {
+        if let Some(ref key) = state.saved_api_key {
+            (mask_api_key_display(key), false)
+        } else {
+            (state.api_key_input.clone(), false)
+        }
+    } else {
+        (state.typing_api_key.clone(), !state.api_key_visible)
+    };
+
+    let input = text_input(placeholder, &display_value)
+        .padding(12)
+        .secure(is_secure);
+
+    let input = if state.has_saved_api_key {
+        input
+    } else {
+        input.on_input(Message::ApiKeyChanged)
+    };
+
+    let eye_toggle = if state.has_saved_api_key {
+        container(Space::new())
+            .width(Length::Fixed(32.0))
+            .height(Length::Fixed(32.0))
+    } else {
+        container(
+            button(eye_icon)
+                .on_press(Message::ToggleApiKeyVisibility)
+                .style(move |_t, _s| button::Style {
+                    background: None,
+                    ..Default::default()
+                }),
+        )
+        .padding(4)
+    };
 
     let key_icon_container = if state.has_saved_api_key {
         container(
@@ -2182,15 +2231,7 @@ fn api_key_input_row<'a>(state: &'a SettingsState, is_dark: bool) -> Element<'a,
 
     row![
         input.style(move |t, s| theme::text_input_style(t, s, is_dark)),
-        container(
-            button(eye_icon)
-                .on_press(Message::ToggleApiKeyVisibility)
-                .style(move |_t, _s| button::Style {
-                    background: None,
-                    ..Default::default()
-                })
-        )
-        .padding(4),
+        eye_toggle,
         key_icon_container,
         container(
             button(action_icon.style(move |_| text::Style {
